@@ -1,24 +1,21 @@
 package org.pmiops.workbench.api;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
-
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-
 import javax.inject.Provider;
-
 import org.json.JSONObject;
 import org.pmiops.workbench.db.dao.WorkspaceService;
 import org.pmiops.workbench.db.model.CdrVersion;
 import org.pmiops.workbench.db.model.User;
-import org.pmiops.workbench.exceptions.ExceptionUtils;
+import org.pmiops.workbench.exceptions.FailedPreconditionException;
 import org.pmiops.workbench.exceptions.NotFoundException;
-import org.pmiops.workbench.firecloud.ApiException;
 import org.pmiops.workbench.firecloud.FireCloudService;
+import org.pmiops.workbench.model.BillingProjectStatus;
 import org.pmiops.workbench.model.Cluster;
 import org.pmiops.workbench.model.ClusterListResponse;
 import org.pmiops.workbench.model.ClusterLocalizeRequest;
@@ -48,15 +45,9 @@ public class ClusterController implements ClusterApiDelegate {
   private static final String BUCKET_NAME_KEY = "BUCKET_NAME";
   private static final String CDR_VERSION_CLOUD_PROJECT = "CDR_VERSION_CLOUD_PROJECT";
   private static final String CDR_VERSION_BIGQUERY_DATASET = "CDR_VERSION_BIGQUERY_DATASET";
+  private static final String DATA_URI_PREFIX = "data:application/json;base64,";
 
   private static final Logger log = Logger.getLogger(ClusterController.class.getName());
-
-  private static final Map<org.pmiops.workbench.notebooks.model.ClusterStatus, ClusterStatus> fcToWorkbenchStatusMap =
-      new ImmutableMap.Builder<org.pmiops.workbench.notebooks.model.ClusterStatus, ClusterStatus>()
-      .put(org.pmiops.workbench.notebooks.model.ClusterStatus.CREATING, ClusterStatus.CREATING)
-      .put(org.pmiops.workbench.notebooks.model.ClusterStatus.RUNNING, ClusterStatus.RUNNING)
-      .put(org.pmiops.workbench.notebooks.model.ClusterStatus.ERROR, ClusterStatus.ERROR)
-      .build();
 
   private static final Function<org.pmiops.workbench.notebooks.model.Cluster, Cluster> TO_ALL_OF_US_CLUSTER =
     new Function<org.pmiops.workbench.notebooks.model.Cluster, Cluster>() {
@@ -65,9 +56,16 @@ public class ClusterController implements ClusterApiDelegate {
         Cluster allOfUsCluster = new Cluster();
         allOfUsCluster.setClusterName(firecloudCluster.getClusterName());
         allOfUsCluster.setClusterNamespace(firecloudCluster.getGoogleProject());
-        if (fcToWorkbenchStatusMap.containsKey(firecloudCluster.getStatus())) {
-          allOfUsCluster.setStatus(fcToWorkbenchStatusMap.get(firecloudCluster.getStatus()));
+        ClusterStatus status = ClusterStatus.UNKNOWN;
+        if (firecloudCluster.getStatus() != null) {
+          ClusterStatus converted = ClusterStatus.fromValue(firecloudCluster.getStatus().toString());
+          if (converted != null) {
+            status = converted;
+          } else {
+            log.warning("unknown Leonardo status: " + firecloudCluster.getStatus());
+          }
         }
+        allOfUsCluster.setStatus(status);
         allOfUsCluster.setCreatedDate(firecloudCluster.getCreatedDate());
         return allOfUsCluster;
       }
@@ -99,6 +97,10 @@ public class ClusterController implements ClusterApiDelegate {
 
   @Override
   public ResponseEntity<ClusterListResponse> listClusters() {
+    if (userProvider.get().getFreeTierBillingProjectStatus() != BillingProjectStatus.READY) {
+      throw new FailedPreconditionException(
+          "User billing project is not yet initialized, cannot list/create clusters");
+    }
     String project = userProvider.get().getFreeTierBillingProjectName();
 
     org.pmiops.workbench.notebooks.model.Cluster fcCluster;
@@ -124,16 +126,11 @@ public class ClusterController implements ClusterApiDelegate {
       String projectName, String clusterName, ClusterLocalizeRequest body) {
     org.pmiops.workbench.firecloud.model.Workspace fcWorkspace;
     try {
-      fcWorkspace = fireCloudService.getWorkspace(body.getWorkspaceNamespace(), body.getWorkspaceId())
-          .getWorkspace();
-    } catch (ApiException e) {
-      if (e.getCode() == 404) {
-        log.log(Level.INFO, "Firecloud workspace not found", e);
-        throw new NotFoundException(String.format(
-            "workspace %s/%s not found or not accessible",
-            body.getWorkspaceNamespace(), body.getWorkspaceId()));
-      }
-      throw ExceptionUtils.convertFirecloudException(e);
+      fcWorkspace = fireCloudService.getWorkspace(body.getWorkspaceNamespace(),
+          body.getWorkspaceId()).getWorkspace();
+    } catch (NotFoundException e) {
+      throw new NotFoundException(String.format("workspace %s/%s not found or not accessible",
+          body.getWorkspaceNamespace(), body.getWorkspaceId()));
     }
     CdrVersion cdrVersion =
         workspaceService.getRequired(body.getWorkspaceNamespace(), body.getWorkspaceId()).getCdrVersion();
@@ -147,45 +144,43 @@ public class ClusterController implements ClusterApiDelegate {
     if (!projectName.equals(body.getWorkspaceNamespace())) {
       workspacePath = body.getWorkspaceNamespace() + ":" + body.getWorkspaceId();
     }
+    String apiDir = "workspaces/" + workspacePath;
+    String localDir = "~/" + apiDir;
 
-    // Materialize the JSON config files directly via the Jupyter server API.
-    // We perform this on every localize call because the Jupyter local
-    // directory can be deleted by the user, and config files may become
-    // outdated, e.g. as we add new properties to the .all_of_us_config.json.
-    // In most cases, aside from the first localize() call this initialization
-    // work will be a no-op.
-    // TODO: It is very inefficient to do 5 serial requests here. Rework this
-    // to utilize "mkdir -p"-like functionality, e.g. via starting with calling
-    // the /localize endpoint.
-    notebooksService.putRootWorkspacesDir(projectName, clusterName);
-    notebooksService.putWorkspaceDir(projectName, clusterName, workspacePath);
-    notebooksService.putFile(
-        projectName, clusterName, workspacePath, DELOCALIZE_CONFIG_FILENAME,
-        new JSONObject()
+    // Always localize config files; usually a no-op after the first call.
+    Map<String, String> localizeMap = new HashMap<>();
+    localizeMap.put(
+        localDir + "/" + DELOCALIZE_CONFIG_FILENAME,
+        jsonToDataUri(new JSONObject()
             .put("destination", gcsNotebooksDir)
-            .put("pattern", "\\.ipynb$")
-            .toString());
-    notebooksService.putFile(
-        projectName, clusterName, workspacePath, AOU_CONFIG_FILENAME,
-        aouConfigJson(fcWorkspace, cdrVersion).toString());
+            .put("pattern", "\\.ipynb$")));
+    localizeMap.put(
+        localDir + "/" + AOU_CONFIG_FILENAME,
+        aouConfigDataUri(fcWorkspace, cdrVersion));
 
     // Localize the requested notebooks, if any.
-    String apiDir = "workspaces/" + workspacePath;
-    if (body.getNotebookNames() != null && !body.getNotebookNames().isEmpty()) {
-      String localDir = "~/" + apiDir;
-      notebooksService.localize(projectName, clusterName, body.getNotebookNames()
+    if (body.getNotebookNames() != null) {
+      localizeMap.putAll(
+          body.getNotebookNames()
           .stream()
           .collect(Collectors.<String, String, String>toMap(
               name -> localDir + "/" + name,
               name -> gcsNotebooksDir + "/" + name)));
     }
+    notebooksService.localize(projectName, clusterName, localizeMap);
 
     ClusterLocalizeResponse resp = new ClusterLocalizeResponse();
+    // This is the Jupyer-server-root-relative path, the style used by the
+    // Jupyter REST API.
     resp.setClusterLocalDirectory(apiDir);
     return ResponseEntity.ok(resp);
   }
 
-  private JSONObject aouConfigJson(org.pmiops.workbench.firecloud.model.Workspace fcWorkspace,
+  private String jsonToDataUri(JSONObject json) {
+    return DATA_URI_PREFIX + Base64.getUrlEncoder().encodeToString(json.toString().getBytes());
+  }
+
+  private String aouConfigDataUri(org.pmiops.workbench.firecloud.model.Workspace fcWorkspace,
       CdrVersion cdrVersion) {
     JSONObject config = new JSONObject();
 
@@ -195,6 +190,6 @@ public class ClusterController implements ClusterApiDelegate {
     config.put(API_HOST_KEY, this.apiHostName);
     config.put(CDR_VERSION_CLOUD_PROJECT, cdrVersion.getBigqueryProject());
     config.put(CDR_VERSION_BIGQUERY_DATASET, cdrVersion.getBigqueryDataset());
-    return config;
+    return jsonToDataUri(config);
   }
 }

@@ -1,11 +1,13 @@
 .error {
-  background-color: #ffeeee;
   padding: 0 0.5rem;
+  font-weight: 500;
+  color: #2F2E7E;
   margin-top: 0.2rem;
 }
 
 .form-section {
   margin-top: 1rem;
+  min-width: 25rem;
 }
 
 .form-section:first {
@@ -14,10 +16,6 @@
 
 .long-input {
   width: 16rem;
-}
-
-.short-input {
-  width: 10rem;
 }
 
 .short-button {
@@ -31,4 +29,45 @@
   width: 8rem;
   vertical-align: middle;
   color: black;
+}
+
+.is-solid.info-icon {
+  color: #302C71;
+  height: 22px;
+  width: 22px;
+}
+
+.domain {
+  font-size: 16px;
+  font-weight: 300;
+  color: #302C71;
+}
+
+.icon-area {
+  display: inline-block;
+  margin-left: -30px;
+  min-width: 30px;
+}
+
+input[type=text]:not([readonly]).successfulInput,
+input[type=password]:not([readonly]).successfulInput {
+  border-color: #7AC79B;
+}
+
+.success-standard {
+  fill: #7AC79B;
+  width: 20px;
+  height: 20px;
+}
+
+input[type=text]:not([readonly]).unsuccessfulInput,
+input[type=password]:not([readonly]).unsuccessfulInput {
+  background-color: #FCEFEC;
+  border-color: #F68D76;
+}
+
+.warning-standard {
+  fill: #F68D76;
+  width: 20px;
+  height: 20px;
 }

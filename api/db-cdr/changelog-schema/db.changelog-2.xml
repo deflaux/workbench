@@ -200,6 +200,7 @@
       <column name="count_value" type="BIGINT">
         <constraints nullable="true"/>
       </column>
+
     </createTable>
 
     <createIndex
@@ -223,6 +224,7 @@
             unique="false">
       <column name="stratum_2"/>
     </createIndex>
+
 
     <createTable tableName="achilles_results_concept">
       <column name="id" type="BIGINT" autoIncrement="true">

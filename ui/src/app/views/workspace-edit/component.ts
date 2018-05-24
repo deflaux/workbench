@@ -199,10 +199,10 @@ export class WorkspaceEditComponent implements OnInit {
     }
   }
 
-
   navigateBack(): void {
     this.locationService.back();
   }
+
 
   reloadConflictingWorkspace(): void {
     this.workspaceStorageService.reloadWorkspace(
@@ -238,8 +238,8 @@ export class WorkspaceEditComponent implements OnInit {
     }
     this.savingWorkspace = true;
     this.workspacesService.createWorkspace(this.workspace).subscribe(
-        () => {
-          this.navigateBack();
+        (workspace) => {
+          this.router.navigate(['workspace', workspace.namespace, workspace.id]);
         },
         (error) => {
           this.workspaceCreationError = true;
@@ -300,10 +300,10 @@ export class WorkspaceEditComponent implements OnInit {
     return Object.keys(input);
   }
 
-  bucketAsThree(input: Array<string>): Array<Array<string>> {
+  bucketAsTwo(input: Array<string>): Array<Array<string>> {
     const output = [];
-    for (let i = 0; i < input.length; i += 3) {
-      output.push(input.slice(i, i + 3));
+    for (let i = 0; i < input.length; i += 2) {
+      output.push(input.slice(i, i + 2));
     }
     return output;
   }

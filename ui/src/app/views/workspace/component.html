@@ -1,4 +1,3 @@
-<app-workspace-nav-bar></app-workspace-nav-bar>
 <div class="workspace-container">
   <div class="main-body">
     <h2>{{workspace.name}}</h2>
@@ -35,7 +34,10 @@
             + New Notebook
           </button>
           <span *ngIf="awaitingReview" class="tooltip-content">Workspace is awaiting review</span>
-          <span *ngIf="clusterLoading" class="tooltip-content">Your account is still being set up, try again later</span>
+          <span *ngIf="cluster && clusterLoading" class="tooltip-content">
+            Your notebook server is still being initialized - this may take up
+            to 5 minutes. Please try again later.
+          </span>
         </span>
       </div>
     </div>
@@ -93,7 +95,14 @@
       </div>
     </clr-modal>
     <div *ngIf="tabOpen===Tabs.Notebooks">
-      <clr-datagrid [clrDgLoading]="notebooksLoading || clusterLoading">
+      <div *ngIf="notebooksLoading || clusterLoading" class="spinner-container">
+        <span class="spinner spinner-lg"></span>
+        <p *ngIf="clusterLongWait" class="spinner-text">
+          <span class="spinner-header">Initializing Notebook Server</span><br>
+          May take up to 5 minutes
+        </p>
+      </div>
+      <clr-datagrid *ngIf="!notebooksLoading && !clusterLoading">
         <clr-dg-column [clrDgField]="'notebook.name'" [clrDgSortBy]="notebookNameComparator">
           Name
           <clr-dg-string-filter [clrDgStringFilter]="notebookNameFilter"></clr-dg-string-filter>
@@ -121,7 +130,7 @@
     <div>
       <h6 class="collaborator-text">Collaborators:</h6>
       <span role="tooltip" aria-haspopup="true" class="tooltip tooltip-md tooltip-top-left">
-        <button class="btn btn-secondary btn-short" [disabled]="!ownerPermission" (click)="navBar.share()">Share</button>
+        <button class="btn btn-secondary btn-short" [disabled]="!ownerPermission" (click)="share()">Share</button>
         <span *ngIf="!ownerPermission" class="tooltip-content">
           Owner access is required to share the workspace.
         </span>
@@ -169,7 +178,7 @@
     <a href="https://console.cloud.google.com/storage/browser/{{workspace.googleBucketName}}">Google Bucket</a>
   </div>
 </div>
-
+<app-workspace-share></app-workspace-share>
 <clr-modal [(clrModalOpen)]="notebookError">
   <h3 class="modal-title">Error:</h3>
   <div class="modal-body">Could not fetch notebooks from workspace.</div>

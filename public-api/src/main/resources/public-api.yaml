@@ -64,6 +64,25 @@ paths:
           schema:
             $ref: "#/definitions/AchillesResult"
 
+  /v1/databrowser/domain-search:
+    get:
+      security: []
+      tags:
+        - dataBrowser
+      description: Gets the domain filters with the count of matched concepts
+      operationId: "getDomainSearchResults"
+      parameters:
+        - in: query
+          name: searchWord
+          type: string
+          required: true
+          description: search key word
+      responses:
+        200:
+          description: A collection of domains
+          schema:
+            $ref: "#/definitions/DbDomainListResponse"
+
 
   /v1/databrowser/db-domains:
     get:
@@ -238,6 +257,10 @@ definitions:
         description: est count in the cdr
         type: integer
         format: int64
+      sourceCountValue:
+        description: est source count in the cdr
+        type: integer
+        format: int64
       prevalence:
         description: prevalence among participants percent count divided num participants
         type: number
@@ -343,6 +366,10 @@ definitions:
         type: string
       countValue:
         description: count
+        type: integer
+        format: int64
+      sourceCountValue:
+        description: source count
         type: integer
         format: int64
 

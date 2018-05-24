@@ -1,0 +1,41 @@
+<clr-datagrid [clrDgLoading]="loading" class="datagrid-compact">
+
+  <clr-dg-placeholder>No {{ tabname }} Data</clr-dg-placeholder>
+
+  <clr-dg-column *ngFor="let col of columns"
+    [clrDgField]="col.notField ? null : col.name"
+    [ngClass]="col.classNames"
+    >
+    {{ col.displayName }}
+  </clr-dg-column>
+
+  <clr-dg-row *clrDgItems="let datum of data"
+    (click)="onClick(datum)"
+    [style.cursor]="'pointer'">
+    <clr-dg-cell *ngFor="let col of columns" class="cell">
+      <ng-container [ngSwitch]="col.name">
+        <span *ngSwitchCase="'itemDate'">
+          {{ datum.itemDate | date:'yyyy-MM-dd HH:mm:ss' }}
+        </span>
+        <span *ngSwitchCase="'sourceVocabulary'"
+          [style.width.%]="100"
+          [style.height.%]="100"
+          [popper]="datum.sourceName || ''"
+          [popperTrigger]="'hover'"
+          [popperPlacement]="'left'"
+          [popperTarget]="sourceValue">
+          <span #sourceValue>{{ datum.sourceVocabulary }}</span>
+        </span>
+        <span *ngSwitchDefault >
+          {{ datum[col.name] }}
+        </span>
+      </ng-container>
+    </clr-dg-cell>
+  </clr-dg-row>
+
+  <clr-dg-footer>
+    {{ pagination.firstItem + 1 }} - {{ pagination.lastItem + 1 }} of {{ totalCount }} Records
+    <clr-dg-pagination #pagination [clrDgPageSize]="pageSize">
+    </clr-dg-pagination>
+  </clr-dg-footer>
+</clr-datagrid>

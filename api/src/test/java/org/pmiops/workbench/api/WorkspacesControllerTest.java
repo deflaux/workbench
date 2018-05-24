@@ -57,7 +57,6 @@ import org.pmiops.workbench.exceptions.ConflictException;
 import org.pmiops.workbench.exceptions.FailedPreconditionException;
 import org.pmiops.workbench.exceptions.ForbiddenException;
 import org.pmiops.workbench.exceptions.NotFoundException;
-import org.pmiops.workbench.firecloud.ApiException;
 import org.pmiops.workbench.firecloud.FireCloudService;
 import org.pmiops.workbench.firecloud.model.WorkspaceACLUpdate;
 import org.pmiops.workbench.firecloud.model.WorkspaceACLUpdateResponseList;
@@ -71,7 +70,6 @@ import org.pmiops.workbench.model.CohortReview;
 import org.pmiops.workbench.model.CreateReviewRequest;
 import org.pmiops.workbench.model.DataAccessLevel;
 import org.pmiops.workbench.model.EmailVerificationStatus;
-import org.pmiops.workbench.model.FileDetail;
 import org.pmiops.workbench.model.PageFilterType;
 import org.pmiops.workbench.model.ParticipantCohortAnnotation;
 import org.pmiops.workbench.model.ParticipantCohortAnnotationListResponse;
@@ -920,20 +918,6 @@ public class WorkspacesControllerTest {
   }
 
   @Test(expected = NotFoundException.class)
-  public void testCloneNotFound() throws Exception {
-    doThrow(new ApiException(404, "")).when(fireCloudService).getWorkspace("doesnot", "exist");
-    CloneWorkspaceRequest req = new CloneWorkspaceRequest();
-    Workspace modWorkspace = new Workspace();
-    modWorkspace.setName("cloned");
-    modWorkspace.setNamespace("cloned-ns");
-    req.setWorkspace(modWorkspace);
-    ResearchPurpose modPurpose = new ResearchPurpose();
-    modPurpose.setAncestry(true);
-    modWorkspace.setResearchPurpose(modPurpose);
-    workspacesController.cloneWorkspace("doesnot", "exist", req);
-  }
-
-  @Test(expected = NotFoundException.class)
   public void testClonePermissionDenied() throws Exception {
     Workspace workspace = createDefaultWorkspace();
     workspace = workspacesController.createWorkspace(workspace).getBody();
@@ -949,7 +933,7 @@ public class WorkspacesControllerTest {
 
     // Permission denied manifests as a 404 in Firecloud.
     when(fireCloudService.getWorkspace(workspace.getNamespace(), workspace.getName()))
-        .thenThrow(new ApiException(404, ""));
+        .thenThrow(new NotFoundException());
     CloneWorkspaceRequest req = new CloneWorkspaceRequest();
     Workspace modWorkspace = new Workspace();
     modWorkspace.setName("cloned");

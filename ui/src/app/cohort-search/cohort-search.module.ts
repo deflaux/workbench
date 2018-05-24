@@ -10,7 +10,6 @@ import {NgxPopperModule} from 'ngx-popper';
 
 /* Components */
 import {CohortSearchComponent} from './cohort-search/cohort-search.component';
-import {ComboChartComponent} from './combo-chart/combo-chart.component';
 import {DemographicsComponent} from './demographics/demographics.component';
 import {GenderChartComponent} from './gender-chart/gender-chart.component';
 import {ModalComponent} from './modal/modal.component';
@@ -27,6 +26,8 @@ import {SelectionInfoComponent} from './selection-info/selection-info.component'
 import {StandardNodeComponent} from './standard-node/standard-node.component';
 import {StandardSearchComponent} from './standard-search/standard-search.component';
 import {TreeComponent} from './tree/tree.component';
+
+import {CohortCommonModule} from '../cohort-common/module';
 
 /* Other Objects */
 import {CohortSearchActions, CohortSearchEpics, ConfigureStore} from './redux';
@@ -51,10 +52,11 @@ const routes: Routes = [{
     NgxChartsModule,
     NgxPopperModule,
     NouisliderModule,
+    // Ours
+    CohortCommonModule,
   ],
   declarations: [
     CohortSearchComponent,
-    ComboChartComponent,
     DemographicsComponent,
     GenderChartComponent,
     ModalComponent,
@@ -71,10 +73,6 @@ const routes: Routes = [{
     StandardNodeComponent,
     StandardSearchComponent,
     TreeComponent,
-  ],
-  exports: [
-    // TODO: Remove this once no longer needed by CohortReviewModule.
-    ComboChartComponent
   ],
   providers: [
     CohortSearchActions,

@@ -19,6 +19,7 @@
       (concept_code);
     </sql>
 
+
   </changeSet>
 
 </databaseChangeLog>
