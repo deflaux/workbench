@@ -79,17 +79,16 @@ public class UserService {
   }
 
   private void updateDataAccessLevel(User user) {
-    if (user.getDataAccessLevel() == DataAccessLevel.UNREGISTERED) {
-      if (user.getBlockscoreVerificationIsValid() != null
-          && user.getBlockscoreVerificationIsValid()
-          && user.getDemographicSurveyCompletionTime() != null
-          && user.getEthicsTrainingCompletionTime() != null
-          && user.getTermsOfServiceCompletionTime() != null
-          && user.getEmailVerificationStatus().equals(EmailVerificationStatus.SUBSCRIBED)) {
-        this.fireCloudService.addUserToGroup(user.getEmail(),
-            configProvider.get().firecloud.registeredDomainName);
-        user.setDataAccessLevel(DataAccessLevel.REGISTERED);
-      }
+    if (user.getDataAccessLevel() == DataAccessLevel.UNREGISTERED
+        && user.getIdVerificationIsValid() != null
+        && user.getIdVerificationIsValid()
+        && user.getDemographicSurveyCompletionTime() != null
+        && user.getEthicsTrainingCompletionTime() != null
+        && user.getTermsOfServiceCompletionTime() != null
+        && user.getEmailVerificationStatus().equals(EmailVerificationStatus.SUBSCRIBED)) {
+      this.fireCloudService.addUserToGroup(user.getEmail(),
+          configProvider.get().firecloud.registeredDomainName);
+      user.setDataAccessLevel(DataAccessLevel.REGISTERED);
     }
   }
 
@@ -141,17 +140,6 @@ public class UserService {
     return user;
   }
 
-  public User setBlockscoreIdVerification(String blockscoreId, boolean blockscoreVerificationIsValid) {
-    return updateWithRetries(new Function<User, User>() {
-      @Override
-      public User apply(User user) {
-        user.setBlockscoreId(blockscoreId);
-        user.setBlockscoreVerificationIsValid(blockscoreVerificationIsValid);
-        return user;
-      }
-    });
-  }
-
   public User submitTermsOfService() {
     final Timestamp timestamp = new Timestamp(clock.instant().toEpochMilli());
     return updateWithRetries(new Function<User, User>() {
@@ -185,6 +173,37 @@ public class UserService {
     });
   }
 
+  public User setClusterRetryCount(int clusterRetryCount) {
+    return updateWithRetries(new Function<User, User>() {
+      @Override
+      public User apply(User user) {
+        user.setClusterCreateRetries(clusterRetryCount);
+        return user;
+      }
+    });
+  }
+
+  public User setBillingRetryCount(int billingRetryCount) {
+    return updateWithRetries(new Function<User, User>() {
+      @Override
+      public User apply(User user) {
+        user.setBillingProjectRetries(billingRetryCount);
+        return user;
+      }
+    });
+  }
+
+  public User setBillingProjectNameAndStatus(String name, BillingProjectStatus status) {
+    return updateWithRetries(new Function<User, User>() {
+      @Override
+      public User apply(User user) {
+        user.setFreeTierBillingProjectName(name);
+        user.setFreeTierBillingProjectStatus(status);
+        return user;
+      }
+    });
+  }
+
   public List<User> getNonVerifiedUsers() {
     return userDao.findUserNotValidated();
   }
@@ -194,7 +213,7 @@ public class UserService {
     return updateWithRetries(new Function<User, User>() {
       @Override
       public User apply(User user) {
-        user.setBlockscoreVerificationIsValid(blockscoreVerificationIsValid);
+        user.setIdVerificationIsValid(blockscoreVerificationIsValid);
         return user;
       }
     }, user);

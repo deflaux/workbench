@@ -6,7 +6,9 @@ import {Observable} from 'rxjs/Observable';
 
 import {WorkspaceData} from 'app/resolvers/workspace';
 import {SignInService} from 'app/services/sign-in.service';
+import {BugReportComponent} from 'app/views/bug-report/component';
 import {WorkspaceShareComponent} from 'app/views/workspace-share/component';
+import {environment} from 'environments/environment';
 
 import {
   Cluster,
@@ -71,13 +73,11 @@ enum Tabs {
 @Component({
   styleUrls: ['../../styles/buttons.css',
     '../../styles/headers.css',
+    '../../styles/cards.css',
     './component.css'],
   templateUrl: './component.html',
 })
 export class WorkspaceComponent implements OnInit, OnDestroy {
-  // Keep in sync with api/src/main/resources/notebooks.yaml.
-  private static readonly leoBaseUrl = 'https://notebooks.firecloud.org';
-
   @ViewChild(WorkspaceShareComponent)
   shareModal: WorkspaceShareComponent;
 
@@ -91,36 +91,28 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
   cohortDescriptionComparator = new CohortDescriptionComparator();
   notebookNameComparator = new NotebookNameComparator();
 
+  greeting: string;
+  showTip: boolean;
   workspace: Workspace;
   wsId: string;
   wsNamespace: string;
   awaitingReview = false;
   cohortsLoading = true;
   cohortsError = false;
-  notebookError = false;
-  notebooksLoading = true;
   cohortList: Cohort[] = [];
-  private pollClusterTimer: NodeJS.Timer;
-  cluster: Cluster;
-  clusterLoading = true;
-  clusterLongWait = false;
-  clusterPulled = false;
-  launchedNotebookName: string;
-  private clusterLocalDirectory: string;
   private accessLevel: WorkspaceAccessLevel;
-  deleting = false;
-  showAlerts = false;
+  notebooksLoading = true;
+  notebookError = false;
   notebookList: FileDetail[] = [];
-  listenerAdded = false;
-  notebookAuthListener: EventListenerOrEventListenerObject;
-  alertCategory: string;
-  alertMsg: string;
+  notebookAuthListeners: EventListenerOrEventListenerObject[] = [];
   tabOpen = Tabs.Notebooks;
+
+  @ViewChild(BugReportComponent)
+  bugReportComponent: BugReportComponent;
 
   constructor(
     private route: ActivatedRoute,
     private cohortsService: CohortsService,
-    private clusterService: ClusterService,
     private http: Http,
     private router: Router,
     private signInService: SignInService,
@@ -131,6 +123,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     this.accessLevel = wsData.accessLevel;
     const {approved, reviewRequested} = this.workspace.researchPurpose;
     this.awaitingReview = reviewRequested && !approved;
+    this.showTip = true;
   }
 
   ngOnInit(): void {
@@ -149,7 +142,12 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
           this.cohortsError = true;
         });
     this.loadNotebookList();
-    this.initCluster();
+
+    if (this.newWorkspace) {
+      this.greeting = 'Get Started';
+    } else {
+      this.greeting = 'Recent Work';
+    }
   }
 
   private loadNotebookList() {
@@ -161,215 +159,59 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
         },
         error => {
           this.notebooksLoading = false;
-          this.notebookError = false;
+          this.notebookError = true;
         });
   }
 
   ngOnDestroy(): void {
-    window.removeEventListener('message', this.notebookAuthListener);
-    if (this.pollClusterTimer) {
-      clearTimeout(this.pollClusterTimer);
-    }
-  }
-
-  openNotebook(notebook: any): void {
-    if (this.clusterLoading) {
-      return;
-    }
-    this.localizeNotebooks([notebook]).subscribe(() => {
-      this.launchedNotebookName = notebook.name;
-      this.clusterPulled = true;
-    });
+    this.notebookAuthListeners.forEach(f => window.removeEventListener('message', f));
   }
 
   newNotebook(): void {
-    if (this.clusterLoading) {
-      return;
-    }
-    this.localizeNotebooks([]).subscribe(() => {
-      // Use the Jupyter Server API directly to create a new notebook. This
-      // API handles notebook name collisions and matches the behavior of
-      // clicking "new notebook" in the Jupyter UI.
-      // TODO: Use the Swagger generated code instead:
-      // https://github.com/jupyter/notebook/blob/master/notebook/services/api/api.yaml
-      const leoNewNotebookUrl =
-        WorkspaceComponent.leoBaseUrl + '/notebooks/' +
-        this.cluster.clusterNamespace + '/' + this.cluster.clusterName +
-        '/api/contents/' + this.clusterLocalDirectory;
-
-      const headers = new Headers();
-      headers.append('Authorization', 'Bearer ' + this.signInService.currentAccessToken);
-      this.http.post(leoNewNotebookUrl, {
-        'type': 'notebook'
-      }, {
-        headers: headers,
-      }).subscribe((resp) => {
-        // TODO(calbach): Going through this modal is a temporary hack to avoid
-        // triggering pop-up blockers. Likely we'll want to switch notebook
-        // cluster opening to go through a redirect URL to make the localize and
-        // redirect look more atomic to the browser. Once this is in place, rm the
-        // modal and this hacky passing of the launched notebook name.
-        this.launchedNotebookName = resp.json().name;
-        this.clusterPulled = true;
-        // Reload the notebook list to get the newly created notebook.
-        this.loadNotebookList();
-      });
-    });
+    this.openNotebook();
   }
 
-  private initCluster(): void {
-    this.pollCluster().subscribe((c) => {
-      this.initializeNotebookCookies(c).subscribe(() => {
-        this.clusterLoading = false;
-      });
-    });
-  }
-
-  private initializeNotebookCookies(cluster: Cluster): Observable<Response> {
-    // TODO(calbach): Generate the FC notebook Typescript client and call here.
-    const leoNotebookUrl = WorkspaceComponent.leoBaseUrl + '/notebooks/'
-      + cluster.clusterNamespace + '/'
-      + cluster.clusterName;
-    const leoSetCookieUrl = leoNotebookUrl + '/setCookie';
-
-    const headers = new Headers();
-    headers.append('Authorization', 'Bearer ' + this.signInService.currentAccessToken);
-    return this.http.get(leoSetCookieUrl, {
-      headers: headers,
-      withCredentials: true
-    });
-  }
-
-  private pollCluster(): Observable<Cluster> {
-    return new Observable<Cluster>(observer => {
-      // Repoll every 15s if not ready.
-      const repoll = () => {
-        this.pollClusterTimer = setTimeout(() => {
-          this.pollCluster().subscribe(c => {
-            observer.next(c);
-            observer.complete();
-          });
-        }, 15000);
-      };
-      this.clusterService.listClusters()
-        .subscribe((resp) => {
-          this.cluster = resp.defaultCluster;
-          if (this.cluster.status !== ClusterStatus.Running) {
-            // Once cluster creation has started, it may take ~5 minutes.
-            this.clusterLongWait = true;
-            repoll();
-          } else {
-            this.clusterLongWait = false;
-            observer.next(this.cluster);
-            observer.complete();
-          }
-          // Repoll on errors.
-        }, repoll);
-    });
-  }
-
-  cancelCluster(): void {
-    this.launchedNotebookName = '';
-    this.clusterPulled = false;
-  }
-
-  openCluster(notebookName?: string): void {
-    let leoNotebookUrl = WorkspaceComponent.leoBaseUrl + '/notebooks/'
-      + this.cluster.clusterNamespace + '/'
-      + this.cluster.clusterName;
-    if (notebookName) {
-      leoNotebookUrl = [
-        leoNotebookUrl, 'notebooks', this.clusterLocalDirectory, notebookName
-      ].join('/');
+  openNotebook(nb?: FileDetail): void {
+    let nbUrl = `/workspaces/${this.workspace.namespace}/${this.workspace.id}/notebooks/`;
+    if (nb) {
+      nbUrl += encodeURIComponent(nb.name);
     } else {
-      leoNotebookUrl = [
-        leoNotebookUrl, 'tree', this.clusterLocalDirectory
-      ].join('/');
+      nbUrl += 'create';
     }
+    const notebook = window.open(nbUrl, '_blank');
 
-    const notebook = window.open(leoNotebookUrl, '_blank');
-    this.launchedNotebookName = '';
-    this.clusterPulled = false;
-    // TODO (blrubenstein): Make the notebook page a list of pages, and
-    //    move this to component scope.
-    if (!this.listenerAdded) {
-      this.notebookAuthListener = (e: MessageEvent) => {
-        if (e.source !== notebook) {
-          return;
+    // TODO(RW-474): Remove the authHandler integration. This is messy,
+    // non-standard, and currently will break in the following situation:
+    // - User opens a new notebook tab.
+    // - While that tab is loading, user immediately navigates away from this
+    //   page.
+    // This is not easily fixed without leaking listeners outside the lifespan
+    // of the workspace component.
+    const authHandler = (e: MessageEvent) => {
+      if (e.source !== notebook) {
+        return;
+      }
+      if (e.origin !== environment.leoApiUrl) {
+        return;
+      }
+      if (e.data.type !== 'bootstrap-auth.request') {
+        return;
+      }
+      notebook.postMessage({
+        'type': 'bootstrap-auth.response',
+        'body': {
+          'googleClientId': this.signInService.clientId
         }
-        if (e.origin !== WorkspaceComponent.leoBaseUrl) {
-          return;
-        }
-        if (e.data.type !== 'bootstrap-auth.request') {
-          return;
-        }
-        notebook.postMessage({
-          'type': 'bootstrap-auth.response',
-          'body': {
-            'googleClientId': this.signInService.clientId
-          }
-        }, WorkspaceComponent.leoBaseUrl);
-      };
-      window.addEventListener('message', this.notebookAuthListener);
-      this.listenerAdded = true;
-    }
-  }
-
-  edit(): void {
-    this.router.navigate(['edit'], {relativeTo : this.route});
-  }
-
-  clone(): void {
-    this.router.navigate(['clone'], {relativeTo : this.route});
-  }
-
-  delete(): void {
-    this.deleting = true;
-    this.workspacesService.deleteWorkspace(
-        this.workspace.namespace, this.workspace.id).subscribe(() => {
-          this.router.navigate(['/']);
-        });
+      }, environment.leoApiUrl);
+    };
+    window.addEventListener('message', authHandler);
+    this.notebookAuthListeners.push(authHandler);
   }
 
   buildCohort(): void {
     if (!this.awaitingReview) {
       this.router.navigate(['cohorts', 'build'], {relativeTo: this.route});
     }
-  }
-
-  private localizeNotebooks(notebooks: any): Observable<void> {
-    const names: Array<string> = notebooks.map(n => n.name);
-    return new Observable<void>(obs => {
-      this.clusterService
-        .localize(this.cluster.clusterNamespace, this.cluster.clusterName, {
-          workspaceNamespace: this.workspace.namespace,
-          workspaceId: this.workspace.id,
-          notebookNames: names
-        })
-        .subscribe((resp) => {
-          this.clusterLocalDirectory = resp.clusterLocalDirectory;
-          obs.next();
-          obs.complete();
-        }, (err) => {
-          this.handleLocalizeError();
-          setTimeout(() => {
-            this.resetAlerts();
-          }, 5000);
-          obs.error(err);
-        });
-    });
-  }
-
-  handleLocalizeError(): void {
-    this.alertCategory = 'alert-danger';
-    this.alertMsg = 'There was an issue while saving file(s) please try again later';
-    this.showAlerts = true;
-  }
-
-  resetAlerts(): void {
-    this.alertCategory = '';
-    this.alertMsg = '';
-    this.showAlerts = false;
   }
 
   get workspaceCreationTime(): string {
@@ -391,7 +233,21 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     return this.accessLevel === WorkspaceAccessLevel.OWNER;
   }
 
+  get newWorkspace(): boolean {
+    return this.cohortList.length === 0 && this.notebookList.length === 0 && this.showTip;
+  }
+
   share(): void {
     this.shareModal.open();
+  }
+
+  dismissTip(): void {
+    this.showTip = false;
+  }
+
+  submitNotebooksLoadBugReport(): void {
+    this.notebookError = false;
+    this.bugReportComponent.reportBug();
+    this.bugReportComponent.bugReport.shortDescription = 'Could not load notebooks';
   }
 }

@@ -1,4 +1,4 @@
-import {Component} from '@angular/core';
+import {AfterViewInit, Component, ElementRef, ViewChild} from '@angular/core';
 
 import {ServerConfigService} from '../../services/server-config.service';
 import {InvitationKeyComponent} from '../invitation-key/component';
@@ -19,8 +19,7 @@ function isBlank(s: string) {
   styleUrls: ['../../styles/template.css',
               './component.css']
 })
-export class AccountCreationComponent {
-  contactEmailConflictError = false;
+export class AccountCreationComponent implements AfterViewInit {
   profile: Profile = {
     username: '',
     enabledInFireCloud: false,
@@ -29,18 +28,15 @@ export class AccountCreationComponent {
     familyName: '',
     contactEmail: ''
   };
-  password: string;
-  passwordAgain: string;
   showAllFieldsRequiredError: boolean;
   creatingAccount: boolean;
   accountCreated: boolean;
   usernameConflictError = false;
   gsuiteDomain: string;
   usernameOffFocus = true;
-  passwordOffFocus = true;
-  passwordAgainOffFocus = true;
   usernameCheckTimeout: NodeJS.Timer;
-  contactEmailCheckTimeout: NodeJS.Timer;
+
+  @ViewChild('infoIcon') infoIcon: ElementRef;
 
   // TODO: Injecting the parent component is a bad separation of concerns, as
   // well as injecting LoginComponent. Should look at refactoring these
@@ -62,26 +58,29 @@ export class AccountCreationComponent {
     }, 0);
   }
 
+  ngAfterViewInit(): void {
+    // This is necessary to avoid clarity, because clarity's tooltip library
+    // automatically sets tabindex to 0.
+    this.infoIcon.nativeElement.tabIndex = -1;
+  }
+
   createAccount(): void {
-    if (this.usernameConflictError || this.contactEmailConflictError
-        || this.usernameInvalidError) {
+    if (this.usernameConflictError || this.usernameInvalidError) {
       return;
     }
     this.showAllFieldsRequiredError = false;
     const requiredFields =
         [this.profile.givenName, this.profile.familyName,
-         this.profile.username, this.profile.contactEmail, this.password, this.passwordAgain];
+         this.profile.username, this.profile.contactEmail];
     if (requiredFields.some(isBlank)) {
       this.showAllFieldsRequiredError = true;
       return;
-    } else if (this.isUsernameValidationError
-      || this.passwordIsNotValid
-      || this.passwordAgainIsNotValid) {
-        return;
+    } else if (this.isUsernameValidationError) {
+      return;
     }
 
     const request: CreateAccountRequest = {
-      profile: this.profile, password: this.password,
+      profile: this.profile,
       invitationKey: this.invitationKeyService.invitationKey
     };
     this.creatingAccount = true;
@@ -93,33 +92,6 @@ export class AccountCreationComponent {
     });
   }
 
-  get showPasswordsDoNotMatchError() {
-    // We do not want to show errors if nothing is typed yet. This is caught by the required
-    // fields case.
-    if (isBlank(this.password) || isBlank(this.passwordAgain)) {
-        return false;
-    }
-    return this.password !== this.passwordAgain;
-  }
-
-  get showPasswordLengthError() {
-    // We do not want to show errors if nothing is typed yet. This is caught by the required
-    // fields case.
-    if (isBlank(this.password)) {
-      return false;
-    }
-    return (this.password.length < 8 || this.password.length > 100);
-  }
-
-  get containsLowerAndUpperError() {
-    // We do not want to show errors if nothing is typed yet. This is caught by the required
-    // fields case.
-    if (isBlank(this.password)) {
-      return false;
-    }
-    return !(this.hasLowerCase(this.password) && this.hasUpperCase(this.password));
-  }
-
   get usernameInvalidError(): boolean {
     const username = this.profile.username;
     if (isBlank(username)) {
@@ -129,7 +101,10 @@ export class AccountCreationComponent {
       return true;
     }
     // Include alphanumeric characters, -'s, _'s, apostrophes, and single .'s in a row.
-    return !(new RegExp(/^[\w-']([.]{0,1}[\w-']+)*$/).test(username));
+    if (username.includes('..') || username.endsWith('.')) {
+      return true;
+    }
+    return !(new RegExp(/^[\w'-][\w.'-]*$/).test(username));
   }
 
   usernameChanged(): void {
@@ -144,27 +119,6 @@ export class AccountCreationComponent {
         this.usernameConflictError = response.isTaken;
       });
     }, 300);
-  }
-
-  contactEmailChanged(): void {
-    if (!this.profile.contactEmail) {
-      return;
-    }
-    this.contactEmailConflictError = false;
-    clearTimeout(this.contactEmailCheckTimeout);
-    this.contactEmailCheckTimeout = setTimeout(() => {
-      this.profileService.isContactEmailTaken(this.profile.contactEmail).subscribe((response) => {
-        this.contactEmailConflictError = response.isTaken;
-      });
-    }, 300);
-  }
-
-  hasLowerCase(str: string): boolean {
-    return (/[a-z]/.test(str));
-  }
-
-  hasUpperCase(str: string): boolean {
-    return (/[A-Z]/.test(str));
   }
 
   leaveFocusUsername(): void {
@@ -192,57 +146,4 @@ export class AccountCreationComponent {
     }
     return !this.isUsernameValidationError;
   }
-
-  leaveFocusPassword(): void {
-    this.passwordOffFocus = true;
-  }
-
-  enterFocusPassword(): void {
-    this.passwordOffFocus = false;
-  }
-
-  get passwordIsNotValid(): boolean {
-    return (this.showPasswordLengthError || this.containsLowerAndUpperError);
-  }
-
-  get showPasswordValidationError(): boolean {
-    if (isBlank(this.password) || !this.passwordOffFocus) {
-      return false;
-    }
-    return this.passwordIsNotValid;
-  }
-
-  get showPasswordValidationSuccess(): boolean {
-    if (isBlank(this.password) || !this.passwordOffFocus) {
-      return false;
-    }
-    return !this.passwordIsNotValid;
-  }
-
-  leaveFocusPasswordAgain(): void {
-    this.passwordAgainOffFocus = true;
-  }
-
-  enterFocusPasswordAgain(): void {
-    this.passwordAgainOffFocus = false;
-  }
-
-  get passwordAgainIsNotValid(): boolean {
-    return this.password !== this.passwordAgain;
-  }
-
-  get showPasswordAgainValidationError(): boolean {
-    if (isBlank(this.passwordAgain) || !this.passwordAgainOffFocus) {
-      return false;
-    }
-    return this.passwordAgainIsNotValid;
-  }
-
-  get showPasswordAgainValidationSuccess(): boolean {
-    if (isBlank(this.passwordAgain) || !this.passwordAgainOffFocus) {
-      return false;
-    }
-    return !this.passwordAgainIsNotValid;
-  }
-
 }

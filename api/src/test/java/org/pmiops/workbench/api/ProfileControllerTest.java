@@ -2,7 +2,9 @@ package org.pmiops.workbench.api;
 
 
 import static com.google.common.truth.Truth.assertThat;
+
 import static junit.framework.TestCase.fail;
+
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doThrow;
@@ -10,21 +12,24 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.blockscore.models.Person;
 import com.google.common.collect.ImmutableList;
+
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+
 import javax.inject.Provider;
+import javax.mail.MessagingException;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.pmiops.workbench.auth.ProfileService;
 import org.pmiops.workbench.auth.UserAuthentication;
 import org.pmiops.workbench.auth.UserAuthentication.UserType;
-import org.pmiops.workbench.blockscore.BlockscoreService;
 import org.pmiops.workbench.config.WorkbenchConfig;
 import org.pmiops.workbench.config.WorkbenchConfig.FireCloudConfig;
 import org.pmiops.workbench.config.WorkbenchEnvironment;
@@ -35,20 +40,18 @@ import org.pmiops.workbench.db.model.User;
 import org.pmiops.workbench.exceptions.BadRequestException;
 import org.pmiops.workbench.exceptions.ConflictException;
 import org.pmiops.workbench.exceptions.ServerErrorException;
-import org.pmiops.workbench.exceptions.WorkbenchException;
 import org.pmiops.workbench.firecloud.FireCloudService;
 import org.pmiops.workbench.firecloud.model.BillingProjectMembership.CreationStatusEnum;
 import org.pmiops.workbench.google.CloudStorageService;
 import org.pmiops.workbench.google.DirectoryService;
-import org.pmiops.workbench.mailchimp.MailChimpService;
+import org.pmiops.workbench.mail.MailService;
 import org.pmiops.workbench.model.BillingProjectMembership;
 import org.pmiops.workbench.model.BillingProjectStatus;
-import org.pmiops.workbench.model.BlockscoreIdVerificationStatus;
+import org.pmiops.workbench.model.IdVerificationStatus;
 import org.pmiops.workbench.model.CreateAccountRequest;
 import org.pmiops.workbench.model.DataAccessLevel;
 import org.pmiops.workbench.model.EmailVerificationStatus;
-import org.pmiops.workbench.model.ErrorResponse;
-import org.pmiops.workbench.model.IdVerificationRequest;
+import org.pmiops.workbench.model.IdVerificationListResponse;
 import org.pmiops.workbench.model.IdVerificationReviewRequest;
 import org.pmiops.workbench.model.InstitutionalAffiliation;
 import org.pmiops.workbench.model.InvitationVerificationRequest;
@@ -76,7 +79,6 @@ public class ProfileControllerTest {
   private static final String FAMILY_NAME = "Bobberson";
   private static final String CONTACT_EMAIL = "bob@example.com";
   private static final String INVITATION_KEY = "secretpassword";
-  private static final String PASSWORD = "12345";
   private static final String PRIMARY_EMAIL = "bob@researchallofus.org";
   private static final String BILLING_PROJECT_PREFIX = "all-of-us-free-";
 
@@ -91,19 +93,15 @@ public class ProfileControllerTest {
   @Mock
   private FireCloudService fireCloudService;
   @Mock
-  private MailChimpService mailChimpService;
-  @Mock
   private NotebooksService notebooksService;
   @Mock
   private DirectoryService directoryService;
   @Mock
   private CloudStorageService cloudStorageService;
   @Mock
-  private BlockscoreService blockscoreService;
-  @Mock
-  private Person person;
-  @Mock
   private Provider<WorkbenchConfig> configProvider;
+  @Mock
+  private MailService mailService;
 
   private ProfileController profileController;
   private ProfileController cloudProfileController;
@@ -111,14 +109,18 @@ public class ProfileControllerTest {
   private InvitationVerificationRequest invitationVerificationRequest;
   private com.google.api.services.admin.directory.model.User googleUser;
   private FakeClock clock;
-  private IdVerificationRequest idVerificationRequest;
   private User user;
 
   @Before
-  public void setUp() {
+  public void setUp() throws MessagingException {
     WorkbenchConfig config = new WorkbenchConfig();
     config.firecloud = new FireCloudConfig();
     config.firecloud.billingProjectPrefix = BILLING_PROJECT_PREFIX;
+    config.firecloud.billingRetryCount = 2;
+    config.admin = new WorkbenchConfig.AdminConfig();
+    config.admin.verifiedSendingAddress = "verifysend@mockemail.mock";
+    config.admin.adminIdVerification = "adminIdVerify@dummyMockEmail.com";
+    config.admin.supportGroup = "supportGroup@dummyMockEmail.com";
 
     WorkbenchEnvironment environment = new WorkbenchEnvironment(true, "appId");
     WorkbenchEnvironment cloudEnvironment = new WorkbenchEnvironment(false, "appId");
@@ -131,23 +133,24 @@ public class ProfileControllerTest {
     profile.setUsername(USERNAME);
     createAccountRequest.setProfile(profile);
     createAccountRequest.setInvitationKey(INVITATION_KEY);
-    createAccountRequest.setPassword(PASSWORD);
     invitationVerificationRequest.setInvitationKey(INVITATION_KEY);
     googleUser = new com.google.api.services.admin.directory.model.User();
     googleUser.setPrimaryEmail(PRIMARY_EMAIL);
 
     clock = new FakeClock(NOW);
 
-    idVerificationRequest = new IdVerificationRequest();
-    idVerificationRequest.setFirstName("Bob");
+    Mockito.doNothing().when(mailService).send(Mockito.any());
     UserService userService = new UserService(userProvider, userDao, adminActionHistoryDao, clock, fireCloudService, configProvider);
-    ProfileService profileService = new ProfileService(fireCloudService, mailChimpService, userDao);
+    ProfileService profileService = new ProfileService(fireCloudService, userDao);
     this.profileController = new ProfileController(profileService, userProvider, userAuthenticationProvider,
         userDao, clock, userService, fireCloudService, directoryService,
-        cloudStorageService, blockscoreService, mailChimpService, notebooksService, Providers.of(config), environment);
+        cloudStorageService, notebooksService, Providers.of(config), environment,
+        Providers.of(mailService));
     this.cloudProfileController = new ProfileController(profileService, userProvider, userAuthenticationProvider,
         userDao, clock, userService, fireCloudService, directoryService,
-        cloudStorageService, blockscoreService, mailChimpService, notebooksService, Providers.of(config), cloudEnvironment);
+        cloudStorageService, notebooksService, Providers.of(config),
+        cloudEnvironment, Providers.of(mailService));
+    when(directoryService.getUser(PRIMARY_EMAIL)).thenReturn(googleUser);
   }
 
   @Test(expected = BadRequestException.class)
@@ -174,7 +177,7 @@ public class ProfileControllerTest {
     createUser();
     Profile profile = profileController.submitDemographicsSurvey().getBody();
     assertThat(profile.getDataAccessLevel()).isEqualTo(DataAccessLevel.UNREGISTERED);
-    assertThat(profile.getBlockscoreIdVerificationStatus()).isEqualTo(BlockscoreIdVerificationStatus.UNVERIFIED);
+    assertThat(profile.getIdVerificationStatus()).isEqualTo(IdVerificationStatus.UNVERIFIED);
     assertThat(profile.getDemographicSurveyCompletionTime()).isEqualTo(NOW.toEpochMilli());
     assertThat(profile.getTermsOfServiceCompletionTime()).isNull();
     assertThat(profile.getEthicsTrainingCompletionTime()).isNull();
@@ -185,7 +188,7 @@ public class ProfileControllerTest {
     createUser();
     Profile profile = profileController.submitTermsOfService().getBody();
     assertThat(profile.getDataAccessLevel()).isEqualTo(DataAccessLevel.UNREGISTERED);
-    assertThat(profile.getBlockscoreIdVerificationStatus()).isEqualTo(BlockscoreIdVerificationStatus.UNVERIFIED);
+    assertThat(profile.getIdVerificationStatus()).isEqualTo(IdVerificationStatus.UNVERIFIED);
     assertThat(profile.getDemographicSurveyCompletionTime()).isNull();
     assertThat(profile.getTermsOfServiceCompletionTime()).isEqualTo(NOW.toEpochMilli());
     assertThat(profile.getEthicsTrainingCompletionTime()).isNull();
@@ -196,7 +199,7 @@ public class ProfileControllerTest {
     createUser();
     Profile profile = profileController.completeEthicsTraining().getBody();
     assertThat(profile.getDataAccessLevel()).isEqualTo(DataAccessLevel.UNREGISTERED);
-    assertThat(profile.getBlockscoreIdVerificationStatus()).isEqualTo(BlockscoreIdVerificationStatus.UNVERIFIED);
+    assertThat(profile.getIdVerificationStatus()).isEqualTo(IdVerificationStatus.UNVERIFIED);
     assertThat(profile.getDemographicSurveyCompletionTime()).isNull();
     assertThat(profile.getTermsOfServiceCompletionTime()).isNull();
     assertThat(profile.getEthicsTrainingCompletionTime()).isEqualTo(NOW.toEpochMilli());
@@ -205,9 +208,6 @@ public class ProfileControllerTest {
   @Test
   public void testSubmitEverything_success() throws Exception {
     createUser();
-    when(mailChimpService.getMember(CONTACT_EMAIL)).thenReturn("subscribed");
-    when(person.getId()).thenReturn("id");
-    when(person.isValid()).thenReturn(true);
     WorkbenchConfig testConfig = new WorkbenchConfig();
     testConfig.firecloud = new FireCloudConfig();
     testConfig.firecloud.registeredDomainName = "";
@@ -216,7 +216,7 @@ public class ProfileControllerTest {
     Profile profile = profileController.completeEthicsTraining().getBody();
     assertThat(profile.getDataAccessLevel()).isEqualTo(DataAccessLevel.UNREGISTERED);
     IdVerificationReviewRequest reviewStatus = new IdVerificationReviewRequest();
-    reviewStatus.setNewStatus(BlockscoreIdVerificationStatus.VERIFIED);
+    reviewStatus.setNewStatus(IdVerificationStatus.VERIFIED);
     profileController.reviewIdVerification(profile.getUserId(), reviewStatus);
     profile = profileController.submitDemographicsSurvey().getBody();
     assertThat(profile.getDataAccessLevel()).isEqualTo(DataAccessLevel.UNREGISTERED);
@@ -224,7 +224,7 @@ public class ProfileControllerTest {
     assertThat(profile.getDataAccessLevel()).isEqualTo(DataAccessLevel.REGISTERED);
     verify(fireCloudService).addUserToGroup("bob@researchallofus.org", "");
 
-    assertThat(profile.getBlockscoreIdVerificationStatus()).isEqualTo(BlockscoreIdVerificationStatus.VERIFIED);
+    assertThat(profile.getIdVerificationStatus()).isEqualTo(IdVerificationStatus.VERIFIED);
     assertThat(profile.getDemographicSurveyCompletionTime()).isEqualTo(NOW.toEpochMilli());
     assertThat(profile.getTermsOfServiceCompletionTime()).isEqualTo(NOW.toEpochMilli());
     assertThat(profile.getEthicsTrainingCompletionTime()).isEqualTo(NOW.toEpochMilli());
@@ -235,9 +235,24 @@ public class ProfileControllerTest {
   public void testCreateAccount_directoryServiceFail() throws Exception {
     when(cloudStorageService.readInvitationKey()).thenReturn(INVITATION_KEY);
 
-    when(directoryService.createUser(GIVEN_NAME, FAMILY_NAME, USERNAME, PASSWORD))
+    when(directoryService.createUser(GIVEN_NAME, FAMILY_NAME, USERNAME, CONTACT_EMAIL))
         .thenThrow(new ServerErrorException());
     profileController.createAccount(createAccountRequest);
+  }
+
+  @Test
+  public void testGetIdVerificationsForReview() throws Exception {
+    createUser();
+    when(fireCloudService.isRequesterEnabledInFirecloud()).thenReturn(true);
+
+    IdVerificationListResponse response = profileController.getIdVerificationsForReview().getBody();
+    assertThat(response.getProfileList().size()).isEqualTo(1);
+
+    IdVerificationReviewRequest request =
+        new IdVerificationReviewRequest().newStatus(IdVerificationStatus.VERIFIED);
+    profileController.reviewIdVerification(user.getUserId(), request);
+    response = profileController.getIdVerificationsForReview().getBody();
+    assertThat(response.getProfileList()).isEmpty();
   }
 
   @Test
@@ -278,7 +293,11 @@ public class ProfileControllerTest {
   }
 
   @Test
-  public void testMe_secondCallErrorsProject() throws Exception {
+  public void testMe_retriesBillingProjectErrors() throws Exception {
+    WorkbenchConfig config = new WorkbenchConfig();
+    config.firecloud = new FireCloudConfig();
+    config.firecloud.billingRetryCount = 2;
+    when(configProvider.get()).thenReturn(config);
     createUser();
     when(fireCloudService.isRequesterEnabledInFirecloud()).thenReturn(true);
 
@@ -292,6 +311,32 @@ public class ProfileControllerTest {
     membership.setProjectName(profile.getFreeTierBillingProjectName());
     when(fireCloudService.getBillingProjectMemberships()).thenReturn(ImmutableList.of(membership));
     profile = profileController.getMe().getBody();
+    assertThat(profile.getFreeTierBillingProjectStatus()).isEqualTo(BillingProjectStatus.PENDING);
+
+    verify(fireCloudService, never()).grantGoogleRoleToUser(any(), any(), any());
+  }
+
+  @Test
+  public void testMe_errorsAfterFourProjectFailures() throws Exception {
+    WorkbenchConfig config = new WorkbenchConfig();
+    config.firecloud = new FireCloudConfig();
+    config.firecloud.billingRetryCount = 2;
+    when(configProvider.get()).thenReturn(config);
+    createUser();
+    when(fireCloudService.isRequesterEnabledInFirecloud()).thenReturn(true);
+
+    Profile profile = profileController.getMe().getBody();
+    assertThat(profile.getFreeTierBillingProjectStatus()).isEqualTo(BillingProjectStatus.PENDING);
+
+    // Simulate FC "Error".
+    org.pmiops.workbench.firecloud.model.BillingProjectMembership membership =
+        new org.pmiops.workbench.firecloud.model.BillingProjectMembership();
+    membership.setCreationStatus(CreationStatusEnum.ERROR);
+    membership.setProjectName(profile.getFreeTierBillingProjectName());
+    when(fireCloudService.getBillingProjectMemberships()).thenReturn(ImmutableList.of(membership));
+    for (int i = 0; i <= configProvider.get().firecloud.billingRetryCount; i++) {
+      profile = profileController.getMe().getBody();
+    }
     assertThat(profile.getFreeTierBillingProjectStatus()).isEqualTo(BillingProjectStatus.ERROR);
 
     verify(fireCloudService, never()).grantGoogleRoleToUser(any(), any(), any());
@@ -426,23 +471,6 @@ public class ProfileControllerTest {
   }
 
   @Test
-  public void testMe_succeedsOnMailchimpFailure() throws Exception {
-    createUser();
-    when(fireCloudService.isRequesterEnabledInFirecloud()).thenReturn(true);
-    user = userDao.findUserByEmail(PRIMARY_EMAIL);
-    user.setEmailVerificationStatus(EmailVerificationStatus.UNVERIFIED);
-    userDao.save(user);
-    when(mailChimpService.addUserContactEmail(CONTACT_EMAIL)).thenThrow(new WorkbenchException(new ErrorResponse().statusCode(400)));
-    Profile profile = profileController.getMe().getBody();
-    assertProfile(profile, PRIMARY_EMAIL, CONTACT_EMAIL, FAMILY_NAME, GIVEN_NAME,
-        DataAccessLevel.UNREGISTERED, TIMESTAMP, true, true);
-    verify(fireCloudService).registerUser(CONTACT_EMAIL, GIVEN_NAME, FAMILY_NAME);
-    verify(fireCloudService).createAllOfUsBillingProject(profile.getFreeTierBillingProjectName());
-    verify(fireCloudService).addUserToBillingProject(
-        PRIMARY_EMAIL, profile.getFreeTierBillingProjectName());
-  }
-
-  @Test
   public void testGetBillingProjects_empty() throws Exception {
     when(fireCloudService.getBillingProjectMemberships()).thenReturn(
         ImmutableList.<org.pmiops.workbench.firecloud.model.BillingProjectMembership>of());
@@ -567,7 +595,7 @@ public class ProfileControllerTest {
 
   private Profile createUser() throws Exception {
     when(cloudStorageService.readInvitationKey()).thenReturn(INVITATION_KEY);
-    when(directoryService.createUser(GIVEN_NAME, FAMILY_NAME, USERNAME, PASSWORD))
+    when(directoryService.createUser(GIVEN_NAME, FAMILY_NAME, USERNAME, CONTACT_EMAIL))
         .thenReturn(googleUser);
     when(fireCloudService.isRequesterEnabledInFirecloud()).thenReturn(false);
     Profile result = profileController.createAccount(createAccountRequest).getBody();

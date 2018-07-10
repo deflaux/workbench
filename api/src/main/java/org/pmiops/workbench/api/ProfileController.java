@@ -1,13 +1,13 @@
 package org.pmiops.workbench.api;
 
 import com.google.common.collect.ImmutableMap;
-import java.io.UnsupportedEncodingException;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -17,14 +17,12 @@ import javax.inject.Provider;
 import javax.mail.Message;
 import javax.mail.MessagingException;
 import javax.mail.Session;
-import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import org.pmiops.workbench.annotations.AuthorityRequired;
 import org.pmiops.workbench.auth.ProfileService;
 import org.pmiops.workbench.auth.UserAuthentication;
 import org.pmiops.workbench.auth.UserAuthentication.UserType;
-import org.pmiops.workbench.blockscore.BlockscoreService;
 import org.pmiops.workbench.config.WorkbenchConfig;
 import org.pmiops.workbench.config.WorkbenchEnvironment;
 import org.pmiops.workbench.db.dao.UserDao;
@@ -37,21 +35,20 @@ import org.pmiops.workbench.exceptions.ForbiddenException;
 import org.pmiops.workbench.exceptions.GatewayTimeoutException;
 import org.pmiops.workbench.exceptions.ServerErrorException;
 import org.pmiops.workbench.exceptions.WorkbenchException;
-import org.pmiops.workbench.firecloud.ApiException;
 import org.pmiops.workbench.firecloud.FireCloudService;
 import org.pmiops.workbench.firecloud.model.BillingProjectMembership.CreationStatusEnum;
 import org.pmiops.workbench.google.CloudStorageService;
 import org.pmiops.workbench.google.DirectoryService;
-import org.pmiops.workbench.mailchimp.MailChimpService;
+import org.pmiops.workbench.mail.MailService;
 import org.pmiops.workbench.model.Authority;
 import org.pmiops.workbench.model.BillingProjectMembership;
 import org.pmiops.workbench.model.BillingProjectStatus;
-import org.pmiops.workbench.model.BlockscoreIdVerificationStatus;
 import org.pmiops.workbench.model.ContactEmailTakenResponse;
 import org.pmiops.workbench.model.CreateAccountRequest;
 import org.pmiops.workbench.model.EmailVerificationStatus;
 import org.pmiops.workbench.model.IdVerificationListResponse;
 import org.pmiops.workbench.model.IdVerificationReviewRequest;
+import org.pmiops.workbench.model.IdVerificationStatus;
 import org.pmiops.workbench.model.InstitutionalAffiliation;
 import org.pmiops.workbench.model.InvitationVerificationRequest;
 import org.pmiops.workbench.model.Profile;
@@ -114,11 +111,10 @@ public class ProfileController implements ProfileApiDelegate {
   private final FireCloudService fireCloudService;
   private final DirectoryService directoryService;
   private final CloudStorageService cloudStorageService;
-  private final BlockscoreService blockscoreService;
-  private final MailChimpService mailChimpService;
   private final NotebooksService notebooksService;
   private final Provider<WorkbenchConfig> workbenchConfigProvider;
   private final WorkbenchEnvironment workbenchEnvironment;
+  private final Provider<MailService> mailServiceProvider;
 
   @Autowired
   ProfileController(ProfileService profileService, Provider<User> userProvider,
@@ -126,11 +122,11 @@ public class ProfileController implements ProfileApiDelegate {
       UserDao userDao,
       Clock clock, UserService userService, FireCloudService fireCloudService,
       DirectoryService directoryService,
-      CloudStorageService cloudStorageService, BlockscoreService blockscoreService,
-      MailChimpService mailChimpService,
+      CloudStorageService cloudStorageService,
       NotebooksService notebooksService,
       Provider<WorkbenchConfig> workbenchConfigProvider,
-      WorkbenchEnvironment workbenchEnvironment) {
+      WorkbenchEnvironment workbenchEnvironment,
+      Provider<MailService> mailServiceProvider) {
     this.profileService = profileService;
     this.userProvider = userProvider;
     this.userAuthenticationProvider = userAuthenticationProvider;
@@ -140,11 +136,10 @@ public class ProfileController implements ProfileApiDelegate {
     this.fireCloudService = fireCloudService;
     this.directoryService = directoryService;
     this.cloudStorageService = cloudStorageService;
-    this.blockscoreService = blockscoreService;
-    this.mailChimpService = mailChimpService;
     this.notebooksService = notebooksService;
     this.workbenchConfigProvider = workbenchConfigProvider;
     this.workbenchEnvironment = workbenchEnvironment;
+    this.mailServiceProvider = mailServiceProvider;
   }
 
   @Override
@@ -159,6 +154,10 @@ public class ProfileController implements ProfileApiDelegate {
     // If the user is already registered, their profile will get updated.
     fireCloudService.registerUser(user.getContactEmail(),
         user.getGivenName(), user.getFamilyName());
+    return createFirecloudBillingProject(user);
+  }
+
+  private String createFirecloudBillingProject(User user) {
     WorkbenchConfig workbenchConfig = workbenchConfigProvider.get();
     long suffix;
     if (workbenchEnvironment.isDevelopment()) {
@@ -222,6 +221,13 @@ public class ProfileController implements ProfileApiDelegate {
       // Service accounts don't need further initialization.
       return user;
     }
+
+    Boolean twoFactorEnabled = Optional.ofNullable(user.getTwoFactorEnabled()).orElse(false);
+    if (!twoFactorEnabled) {
+      user.setTwoFactorEnabled(directoryService.getUser(user.getEmail()).getIsEnrolledIn2Sv());
+      userDao.save(user);
+    }
+
     // On first sign-in, create a FC user, billing project, and set the first sign in time.
     if (user.getFirstSignInTime() == null) {
       // TODO(calbach): After the next DB wipe, switch this null check to
@@ -233,6 +239,9 @@ public class ProfileController implements ProfileApiDelegate {
       }
 
       user.setFirstSignInTime(new Timestamp(clock.instant().toEpochMilli()));
+      // If the user is logged in, then we know that they have followed the account creation instructions sent to
+      // their initial contact email address.
+      user.setEmailVerificationStatus(EmailVerificationStatus.SUBSCRIBED);
       try {
         return userDao.save(user);
       } catch (ObjectOptimisticLockingFailureException e) {
@@ -268,11 +277,24 @@ public class ProfileController implements ProfileApiDelegate {
         return user;
 
       case ERROR:
-        log.log(Level.SEVERE, String.format(
-            "free tier project %s failed to be created", user.getFreeTierBillingProjectName()));
-        user.setFreeTierBillingProjectStatus(status);
-        return userDao.save(user);
-
+        int retries = Optional.ofNullable(user.getBillingProjectRetries()).orElse(0);
+        if (retries < workbenchConfigProvider.get().firecloud.billingRetryCount) {
+          this.userService.setBillingRetryCount(retries + 1);
+          log.log(Level.INFO, String.format(
+              "Billing project %s failed to be created, retrying.", user.getFreeTierBillingProjectName()));
+          try {
+            fireCloudService.removeUserFromBillingProject(user.getEmail(), user.getFreeTierBillingProjectName());
+          } catch (WorkbenchException e) {
+            log.log(Level.INFO, String.format("Failed to remove user from errored billing project"));
+          }
+          String billingProjectName = createFirecloudBillingProject(user);
+          return this.userService.setBillingProjectNameAndStatus(billingProjectName, BillingProjectStatus.PENDING);
+        } else {
+          String billingProjectName = user.getFreeTierBillingProjectName();
+          log.log(Level.SEVERE, String.format(
+              "free tier project %s failed to be created", billingProjectName));
+          return userService.setBillingProjectNameAndStatus(billingProjectName, status);
+        }
       case READY:
         break;
 
@@ -305,17 +327,11 @@ public class ProfileController implements ProfileApiDelegate {
     } catch (GatewayTimeoutException e) {
       log.log(Level.WARNING, "Socket Timeout creating cluster.");
     }
-    user.setFreeTierBillingProjectStatus(BillingProjectStatus.READY);
-    return userDao.save(user);
+    return userService.setBillingProjectNameAndStatus(user.getFreeTierBillingProjectName(), BillingProjectStatus.READY);
   }
 
   private ResponseEntity<Profile> getProfileResponse(User user) {
-    try {
-      return ResponseEntity.ok(profileService.getProfile(user));
-    } catch (ApiException e) {
-      log.log(Level.INFO, "Error calling FireCloud", e);
-      return ResponseEntity.status(e.getCode()).build();
-    }
+    return ResponseEntity.ok(profileService.getProfile(user));
   }
 
   @Override
@@ -344,15 +360,11 @@ public class ProfileController implements ProfileApiDelegate {
 
   @Override
   public ResponseEntity<Profile> createAccount(CreateAccountRequest request) {
-    if (userService.getContactEmailTaken(request.getProfile().getContactEmail())) {
-      throw new ConflictException("That contact email is already taken.");
-    }
-
     verifyInvitationKey(request.getInvitationKey());
     com.google.api.services.admin.directory.model.User googleUser =
         directoryService.createUser(request.getProfile().getGivenName(),
             request.getProfile().getFamilyName(), request.getProfile().getUsername(),
-            request.getPassword());
+            request.getProfile().getContactEmail());
 
     // Create a user that has no data access or FC user associated.
     // We create this account before they sign in so we can keep track of which users we have
@@ -379,7 +391,7 @@ public class ProfileController implements ProfileApiDelegate {
   public ResponseEntity<Profile> submitIdVerification() {
     WorkbenchConfig workbenchConfig = workbenchConfigProvider.get();
     User user = userProvider.get();
-    if (user.getRequestedIdVerification() == null || user.getRequestedIdVerification() == false) {
+    if (user.getRequestedIdVerification() == null || !user.getRequestedIdVerification()) {
       Properties props = new Properties();
       Session session = Session.getDefaultInstance(props, null);
       try {
@@ -395,7 +407,7 @@ public class ProfileController implements ProfileApiDelegate {
             workbenchConfig.admin.adminIdVerification));
         msg.setSubject("[Id Verification Request]: " + user.getEmail());
         msg.setText(ID_VERIFICATION_TEXT + user.getEmail());
-        Transport.send(msg);
+        mailServiceProvider.get().send(msg);
       } catch (MessagingException e) {
         throw new EmailException("Error submitting id verification", e);
       }
@@ -438,31 +450,6 @@ public class ProfileController implements ProfileApiDelegate {
   }
 
   @Override
-  public ResponseEntity<Void> requestInvitationKey(String email) {
-    WorkbenchConfig workbenchConfig = workbenchConfigProvider.get();
-    Properties props = new Properties();
-    Session session = Session.getDefaultInstance(props, null);
-    try {
-      Message msg = new MimeMessage(session);
-      msg.setFrom(new InternetAddress(workbenchConfig.admin.verifiedSendingAddress));
-      InternetAddress[] replyTo = new InternetAddress[1];
-      replyTo[0] = new InternetAddress(email);
-      msg.setReplyTo(replyTo);
-      // To test the bug reporting functionality, change the recipient email to your email rather
-      // than the group.
-      // https://precisionmedicineinitiative.atlassian.net/browse/RW-40
-      msg.addRecipient(Message.RecipientType.TO, new InternetAddress(
-          workbenchConfig.admin.supportGroup, "AofU Workbench Engineers"));
-      msg.setSubject("[AofU Invitation Key Request]");
-      msg.setText(email + " is requesting the invitation key.");
-      Transport.send(msg);
-    } catch (MessagingException | UnsupportedEncodingException e) {
-      throw new EmailException("Error sending invitation key request", e);
-    }
-    return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
-  }
-
-  @Override
   public ResponseEntity<Void> updateProfile(Profile updatedProfile) {
     User user = userProvider.get();
     user.setGivenName(updatedProfile.getGivenName());
@@ -470,12 +457,9 @@ public class ProfileController implements ProfileApiDelegate {
     user.setAboutYou(updatedProfile.getAboutYou());
     user.setAreaOfResearch(updatedProfile.getAreaOfResearch());
 
-    if (updatedProfile.getContactEmail() != null) {
-      if (!updatedProfile.getContactEmail().equals(user.getContactEmail())) {
-        mailChimpService.addUserContactEmail(updatedProfile.getContactEmail());
-        user.setEmailVerificationStatus(EmailVerificationStatus.PENDING);
-        user.setContactEmail(updatedProfile.getContactEmail());
-      }
+    if (updatedProfile.getContactEmail() != null &&
+        !updatedProfile.getContactEmail().equals(user.getContactEmail())) {
+      user.setContactEmail(updatedProfile.getContactEmail());
     }
     List<org.pmiops.workbench.db.model.InstitutionalAffiliation> newAffiliations =
         updatedProfile.getInstitutionalAffiliations()
@@ -524,15 +508,9 @@ public class ProfileController implements ProfileApiDelegate {
   public ResponseEntity<IdVerificationListResponse> getIdVerificationsForReview() {
     IdVerificationListResponse response = new IdVerificationListResponse();
     List<Profile> responseList = new ArrayList<Profile>();
-    try {
-      for (User user : userService.getNonVerifiedUsers()) {
-        responseList.add(profileService.getProfile(user));
-      }
-    } catch (ApiException e) {
-      log.log(Level.INFO, "Error calling FireCloud", e);
-      return ResponseEntity.status(e.getCode()).build();
+    for (User user : userService.getNonVerifiedUsers()) {
+      responseList.add(profileService.getProfile(user));
     }
-
     response.setProfileList(responseList);
     return ResponseEntity.ok(response);
   }
@@ -540,11 +518,11 @@ public class ProfileController implements ProfileApiDelegate {
   @Override
   @AuthorityRequired({Authority.REVIEW_ID_VERIFICATION})
   public ResponseEntity<IdVerificationListResponse> reviewIdVerification(Long userId, IdVerificationReviewRequest review) {
-    BlockscoreIdVerificationStatus status = review.getNewStatus();
-    Boolean oldVerification = userDao.findUserByUserId(userId).getBlockscoreVerificationIsValid();
+    IdVerificationStatus status = review.getNewStatus();
+    Boolean oldVerification = userDao.findUserByUserId(userId).getIdVerificationIsValid();
     String newValue;
 
-    if (status == BlockscoreIdVerificationStatus.VERIFIED) {
+    if (status == IdVerificationStatus.VERIFIED) {
       userService.setIdVerificationApproved(userId, true);
       newValue = "true";
     } else {

@@ -1,7 +1,6 @@
 package org.pmiops.workbench.cohortreview;
 
 import org.apache.commons.lang3.StringUtils;
-import org.pmiops.workbench.cdr.cache.GenderRaceEthnicityConcept;
 import org.pmiops.workbench.db.dao.CohortAnnotationDefinitionDao;
 import org.pmiops.workbench.db.dao.CohortDao;
 import org.pmiops.workbench.db.dao.CohortReviewDao;
@@ -26,12 +25,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.inject.Provider;
 import java.sql.Date;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.List;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,9 +40,6 @@ public class CohortReviewServiceImpl implements CohortReviewService {
     private ParticipantCohortAnnotationDao participantCohortAnnotationDao;
     private CohortAnnotationDefinitionDao cohortAnnotationDefinitionDao;
     private WorkspaceService workspaceService;
-    private Provider<GenderRaceEthnicityConcept> genderRaceEthnicityConceptProvider;
-
-    private static final Logger log = Logger.getLogger(CohortReviewServiceImpl.class.getName());
 
     @Autowired
     public CohortReviewServiceImpl(CohortReviewDao cohortReviewDao,
@@ -53,15 +47,13 @@ public class CohortReviewServiceImpl implements CohortReviewService {
                             ParticipantCohortStatusDao participantCohortStatusDao,
                             ParticipantCohortAnnotationDao participantCohortAnnotationDao,
                             CohortAnnotationDefinitionDao cohortAnnotationDefinitionDao,
-                            WorkspaceService workspaceService,
-                            Provider<GenderRaceEthnicityConcept> genderRaceEthnicityConceptProvider) {
+                            WorkspaceService workspaceService) {
         this.cohortReviewDao = cohortReviewDao;
         this.cohortDao = cohortDao;
         this.participantCohortStatusDao = participantCohortStatusDao;
         this.participantCohortAnnotationDao = participantCohortAnnotationDao;
         this.cohortAnnotationDefinitionDao = cohortAnnotationDefinitionDao;
         this.workspaceService = workspaceService;
-        this.genderRaceEthnicityConceptProvider = genderRaceEthnicityConceptProvider;
     }
 
     public CohortReviewServiceImpl() {
@@ -78,14 +70,12 @@ public class CohortReviewServiceImpl implements CohortReviewService {
     }
 
     @Override
-    public Workspace validateMatchingWorkspace(
+    public Workspace validateMatchingWorkspaceAndSetCdrVersion(
         String workspaceNamespace, String workspaceName,
         long workspaceId, WorkspaceAccessLevel accessRequired) {
-      // This also enforces registered auth domain.
-      workspaceService.enforceWorkspaceAccessLevel(workspaceNamespace, workspaceName, accessRequired);
-
-
-      Workspace workspace = workspaceService.getRequired(workspaceNamespace, workspaceName);
+      Workspace workspace =
+          workspaceService.getWorkspaceEnforceAccessLevelAndSetCdrVersion(workspaceNamespace,
+                workspaceName, accessRequired);
       if (workspace.getWorkspaceId() != workspaceId) {
           throw new NotFoundException(
                   String.format("Not Found: No workspace matching workspaceNamespace: %s, workspaceId: %s",

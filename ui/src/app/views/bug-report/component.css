@@ -9,3 +9,13 @@
 .form-section:first-child {
   margin-top: 0;
 }
+
+.notebook-logs {
+  display: inline-block;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}

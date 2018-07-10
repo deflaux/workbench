@@ -1,40 +1,71 @@
 package org.pmiops.workbench.api;
 
-import com.google.cloud.bigquery.*;
+import com.google.cloud.bigquery.BigQueryException;
+import com.google.cloud.bigquery.FieldValue;
+import com.google.cloud.bigquery.QueryResult;
+import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
-import org.pmiops.workbench.cdr.CdrVersionContext;
-import org.pmiops.workbench.cdr.cache.GenderRaceEthnicityConcept;
-import org.pmiops.workbench.cdr.cache.GenderRaceEthnicityType;
-import org.pmiops.workbench.cohortbuilder.ParticipantCounter;
-import org.pmiops.workbench.cohortbuilder.ParticipantCriteria;
-import org.pmiops.workbench.cohortreview.CohortReviewService;
-import org.pmiops.workbench.cohortreview.ReviewTabQueryBuilder;
-import org.pmiops.workbench.db.model.Cohort;
-import org.pmiops.workbench.db.model.CohortReview;
-import org.pmiops.workbench.db.model.ParticipantCohortStatus;
-import org.pmiops.workbench.db.model.ParticipantCohortStatusKey;
-import org.pmiops.workbench.db.model.Workspace;
-import org.pmiops.workbench.exceptions.BadRequestException;
-import org.pmiops.workbench.exceptions.NotFoundException;
-import org.pmiops.workbench.model.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
-
-import javax.inject.Provider;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.inject.Provider;
+import org.pmiops.workbench.cdr.cache.GenderRaceEthnicityConcept;
+import org.pmiops.workbench.cohortbuilder.ParticipantCounter;
+import org.pmiops.workbench.cohortbuilder.ParticipantCriteria;
+import org.pmiops.workbench.cohortreview.CohortReviewService;
+import org.pmiops.workbench.cohortreview.ReviewTabQueryBuilder;
+import org.pmiops.workbench.cohortreview.util.ParticipantCohortStatusDbInfo;
+import org.pmiops.workbench.db.model.Cohort;
+import org.pmiops.workbench.db.model.CohortReview;
+import org.pmiops.workbench.db.model.ParticipantCohortStatus;
+import org.pmiops.workbench.db.model.ParticipantCohortStatusKey;
+import org.pmiops.workbench.exceptions.BadRequestException;
+import org.pmiops.workbench.exceptions.NotFoundException;
+import org.pmiops.workbench.model.CohortStatus;
+import org.pmiops.workbench.model.CohortSummaryListResponse;
+import org.pmiops.workbench.model.ConceptIdName;
+import org.pmiops.workbench.model.Condition;
+import org.pmiops.workbench.model.CreateReviewRequest;
+import org.pmiops.workbench.model.Device;
+import org.pmiops.workbench.model.DomainType;
+import org.pmiops.workbench.model.Drug;
+import org.pmiops.workbench.model.EmptyResponse;
+import org.pmiops.workbench.model.Filter;
+import org.pmiops.workbench.model.Master;
+import org.pmiops.workbench.model.Measurement;
+import org.pmiops.workbench.model.ModifyCohortStatusRequest;
+import org.pmiops.workbench.model.ModifyParticipantCohortAnnotationRequest;
+import org.pmiops.workbench.model.Observation;
+import org.pmiops.workbench.model.PageFilterRequest;
+import org.pmiops.workbench.model.PageRequest;
+import org.pmiops.workbench.model.ParticipantCohortAnnotation;
+import org.pmiops.workbench.model.ParticipantCohortAnnotationListResponse;
+import org.pmiops.workbench.model.ParticipantCohortStatusColumns;
+import org.pmiops.workbench.model.ParticipantCohortStatuses;
+import org.pmiops.workbench.model.ParticipantData;
+import org.pmiops.workbench.model.ParticipantDataListResponse;
+import org.pmiops.workbench.model.Procedure;
+import org.pmiops.workbench.model.ReviewColumns;
+import org.pmiops.workbench.model.ReviewFilter;
+import org.pmiops.workbench.model.ReviewStatus;
+import org.pmiops.workbench.model.SearchRequest;
+import org.pmiops.workbench.model.SortOrder;
+import org.pmiops.workbench.model.Visit;
+import org.pmiops.workbench.model.WorkspaceAccessLevel;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class CohortReviewController implements CohortReviewApiDelegate {
@@ -42,6 +73,10 @@ public class CohortReviewController implements CohortReviewApiDelegate {
   public static final Integer PAGE = 0;
   public static final Integer PAGE_SIZE = 25;
   public static final Integer MAX_REVIEW_SIZE = 10000;
+  public static final List<String> GENDER_RACE_ETHNICITY_TYPES =
+    ImmutableList.of(ParticipantCohortStatusColumns.ETHNICITY.name(),
+      ParticipantCohortStatusColumns.GENDER.name(),
+      ParticipantCohortStatusColumns.RACE.name());
 
   private CohortReviewService cohortReviewService;
   private BigQueryService bigQueryService;
@@ -61,7 +96,7 @@ public class CohortReviewController implements CohortReviewApiDelegate {
         return new org.pmiops.workbench.model.ParticipantCohortStatus()
           .participantId(participant.getParticipantKey().getParticipantId())
           .status(participant.getStatus())
-          .birthDate(participant.getBirthDate().getTime())
+          .birthDate(participant.getBirthDate().toString())
           .ethnicityConceptId(participant.getEthnicityConceptId())
           .ethnicity(participant.getEthnicity())
           .genderConceptId(participant.getGenderConceptId())
@@ -173,11 +208,8 @@ public class CohortReviewController implements CohortReviewApiDelegate {
 
     Cohort cohort = cohortReviewService.findCohort(cohortId);
     //this validates that the user is in the proper workspace
-    Workspace workspace = cohortReviewService.validateMatchingWorkspace(workspaceNamespace,
-      workspaceId, cohort.getWorkspaceId(), WorkspaceAccessLevel.WRITER);
-
-    CdrVersionContext.setCdrVersion(workspace.getCdrVersion());
-
+    cohortReviewService.validateMatchingWorkspaceAndSetCdrVersion(workspaceNamespace,
+        workspaceId, cohort.getWorkspaceId(), WorkspaceAccessLevel.WRITER);
     CohortReview cohortReview = null;
     try {
       cohortReview = cohortReviewService.findCohortReview(cohortId, cdrVersionId);
@@ -350,9 +382,8 @@ public class CohortReviewController implements CohortReviewApiDelegate {
     CohortReview cohortReview = null;
     Cohort cohort = cohortReviewService.findCohort(cohortId);
 
-    Workspace workspace = cohortReviewService.validateMatchingWorkspace(workspaceNamespace, workspaceId,
-      cohort.getWorkspaceId(), WorkspaceAccessLevel.READER);
-    CdrVersionContext.setCdrVersion(workspace.getCdrVersion());
+    cohortReviewService.validateMatchingWorkspaceAndSetCdrVersion(workspaceNamespace, workspaceId,
+        cohort.getWorkspaceId(), WorkspaceAccessLevel.READER);
     try {
       cohortReview = cohortReviewService.findCohortReview(cohortId, cdrVersionId);
     } catch (NotFoundException nfe) {
@@ -363,7 +394,10 @@ public class CohortReviewController implements CohortReviewApiDelegate {
 
     List<Filter> filters = request.getFilters() == null ? Collections.<Filter>emptyList() : request.getFilters().getItems();
     List<ParticipantCohortStatus> participantCohortStatuses =
-      cohortReviewService.findAll(cohortReview.getCohortReviewId(), filters, pageRequest);
+      cohortReviewService.findAll(cohortReview.getCohortReviewId(),
+        convertGenderRaceEthnicityFilters(filters),
+        convertGenderRaceEthnicitySortOrder(pageRequest));
+    lookupGenderRaceEthnicityValues(participantCohortStatuses);
 
     org.pmiops.workbench.model.CohortReview responseReview = TO_CLIENT_COHORTREVIEW.apply(cohortReview, pageRequest);
     responseReview.setParticipantCohortStatuses(
@@ -469,10 +503,8 @@ public class CohortReviewController implements CohortReviewApiDelegate {
                                                        WorkspaceAccessLevel level) {
     Cohort cohort = cohortReviewService.findCohort(cohortId);
     //this validates that the user is in the proper workspace
-    Workspace workspace = cohortReviewService.validateMatchingWorkspace(workspaceNamespace,
-      workspaceId, cohort.getWorkspaceId(), level);
-
-    CdrVersionContext.setCdrVersion(workspace.getCdrVersion());
+    cohortReviewService.validateMatchingWorkspaceAndSetCdrVersion(workspaceNamespace,
+        workspaceId, cohort.getWorkspaceId(), level);
 
     return cohortReviewService.findCohortReview(cohort.getCohortId(), cdrVersionId);
   }
@@ -518,7 +550,7 @@ public class CohortReviewController implements CohortReviewApiDelegate {
         new ParticipantCohortStatus()
           .participantKey(new ParticipantCohortStatusKey(cohortReviewId, bigQueryService.getLong(row, rm.get("person_id"))))
           .status(CohortStatus.NOT_REVIEWED)
-          .birthDate(new java.sql.Date(birthDate.getTime()))
+          .birthDate(new Date(birthDate.getTime()))
           .genderConceptId(bigQueryService.getLong(row, rm.get("gender_concept_id")))
           .raceConceptId(bigQueryService.getLong(row, rm.get("race_concept_id")))
           .ethnicityConceptId(bigQueryService.getLong(row, rm.get("ethnicity_concept_id"))));
@@ -570,10 +602,58 @@ public class CohortReviewController implements CohortReviewApiDelegate {
   private void lookupGenderRaceEthnicityValues(List<ParticipantCohortStatus> participantCohortStatuses) {
     Map<String, Map<Long, String>> concepts = genderRaceEthnicityConceptProvider.get().getConcepts();
     participantCohortStatuses.forEach(pcs -> {
-      pcs.setRace(concepts.get(GenderRaceEthnicityType.RACE.name()).get(pcs.getRaceConceptId()));
-      pcs.setGender(concepts.get(GenderRaceEthnicityType.GENDER.name()).get(pcs.getGenderConceptId()));
-      pcs.setEthnicity(concepts.get(GenderRaceEthnicityType.ETHNICITY.name()).get(pcs.getEthnicityConceptId()));
+      pcs.setRace(concepts.get(ParticipantCohortStatusColumns.RACE.name()).get(pcs.getRaceConceptId()));
+      pcs.setGender(concepts.get(ParticipantCohortStatusColumns.GENDER.name()).get(pcs.getGenderConceptId()));
+      pcs.setEthnicity(concepts.get(ParticipantCohortStatusColumns.ETHNICITY.name()).get(pcs.getEthnicityConceptId()));
     });
+  }
+
+  /**
+   * Helper method that generates a list of concept ids per demo
+   * @param filters
+   * @return
+   */
+  private List<Filter> convertGenderRaceEthnicityFilters(List<Filter> filters) {
+    return filters.stream()
+      .map(filter -> {
+        if (GENDER_RACE_ETHNICITY_TYPES.contains(filter.getProperty().name())) {
+          Map<Long, String> possibleConceptIds =
+            genderRaceEthnicityConceptProvider.get().getConcepts().get(filter.getProperty().name());
+          List<String> values = possibleConceptIds.entrySet().stream()
+            .filter(entry -> filter.getValues().contains(entry.getValue()))
+            .map(entry -> entry.getKey().toString())
+            .collect(Collectors.toList());
+          return new Filter()
+            .property(filter.getProperty())
+            .operator(filter.getOperator())
+            .values(values);
+        }
+        return filter;
+      })
+      .collect(Collectors.toList());
+  }
+
+  /**
+   * Helper method that converts sortOrder if gender, race or ethnicity.
+   * @param pageRequest
+   * @return
+   */
+  private PageRequest convertGenderRaceEthnicitySortOrder(PageRequest pageRequest) {
+    String sortColumn = pageRequest.getSortColumn();
+    if (GENDER_RACE_ETHNICITY_TYPES.contains(sortColumn)) {
+      Map<String, Map<Long, String>> concepts = genderRaceEthnicityConceptProvider.get().getConcepts();
+      List<String> demoList =
+        concepts.get(sortColumn).entrySet().stream()
+          .map(e -> new ConceptIdName().conceptId(e.getKey()).conceptName(e.getValue()))
+          .sorted(Comparator.comparing(ConceptIdName::getConceptName))
+          .map(c -> c.getConceptId().toString())
+          .collect(Collectors.toList());
+      if (!demoList.isEmpty()) {
+        pageRequest.setSortColumn("FIELD(" + ParticipantCohortStatusDbInfo.fromName(sortColumn).getDbName() + ","
+          + String.join(",", demoList) + ") " + pageRequest.getSortOrder().name());
+      }
+    }
+    return pageRequest;
   }
 
   private PageRequest createPageRequest(PageFilterRequest request) {

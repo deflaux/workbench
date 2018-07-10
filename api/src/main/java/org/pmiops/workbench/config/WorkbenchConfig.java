@@ -15,14 +15,21 @@ public class WorkbenchConfig {
   public GoogleDirectoryServiceConfig googleDirectoryService;
   public ServerConfig server;
   public AdminConfig admin;
+  public JiraConfig jira;
+  public MandrillConfig mandrill;
 
   public static class FireCloudConfig {
     public boolean debugEndpoints;
+    public String baseUrl;
     public String billingAccountId;
     public String billingProjectPrefix;
+    public Integer clusterMaxAgeDays;
+    public Integer clusterIdleMaxAgeDays;
     public String registeredDomainName;
     public boolean enforceRegistered;
     public String jupyterUserScriptUri;
+    public String leoBaseUrl;
+    public Integer billingRetryCount;
   }
 
   public static class AuthConfig {
@@ -38,6 +45,7 @@ public class WorkbenchConfig {
 
   public static class GoogleCloudStorageServiceConfig {
     public String credentialsBucketName;
+    public String demosBucketName;
   }
 
   public static class GoogleDirectoryServiceConfig {
@@ -53,5 +61,14 @@ public class WorkbenchConfig {
     public String adminIdVerification;
     public String supportGroup;
     public String verifiedSendingAddress;
+  }
+
+  public static class JiraConfig {
+    public String projectKey;
+  }
+
+  public static class MandrillConfig {
+    public String fromEmail;
+    public int sendRetries;
   }
 }

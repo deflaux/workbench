@@ -17,6 +17,7 @@ import {ServerConfigService} from './services/server-config.service';
 import {SignInService} from './services/sign-in.service';
 import {StatusCheckService} from './services/status-check.service';
 import {WorkspaceStorageService} from './services/workspace-storage.service';
+import {WINDOW_REF} from './utils';
 
 import {AccountCreationSuccessComponent} from './views/account-creation-success/component';
 import {AccountCreationComponent} from './views/account-creation/component';
@@ -26,10 +27,14 @@ import {AppComponent, overriddenUrlKey} from './views/app/component';
 import {BreadcrumbComponent} from './views/breadcrumb/component';
 import {BugReportComponent} from './views/bug-report/component';
 import {CohortEditComponent} from './views/cohort-edit/component';
+import {CohortListComponent} from './views/cohort-list/component';
 import {ErrorHandlerComponent} from './views/error-handler/component';
+import {HomepageComponent} from './views/homepage/component';
 import {InitialErrorComponent} from './views/initial-error/component';
 import {InvitationKeyComponent} from './views/invitation-key/component';
 import {LoginComponent} from './views/login/component';
+import {NotebookListComponent} from './views/notebook-list/component';
+import {NotebookRedirectComponent} from './views/notebook-redirect/component';
 import {PageTemplateSignedOutComponent} from './views/page-template-signed-out/component';
 import {ProfilePageComponent} from './views/profile-page/component';
 import {RoutingSpinnerComponent} from './views/routing-spinner/component';
@@ -53,6 +58,11 @@ import {
   Configuration,
 } from 'generated';
 
+import {
+  ApiModule as LeoApiModule,
+  Configuration as LeoConfiguration,
+} from 'notebooks-generated';
+
 // Unfortunately stackdriver-errors-js doesn't properly declare dependencies, so
 // we need to explicitly load its StackTrace dep:
 // https://github.com/GoogleCloudPlatform/stackdriver-errors-js/issues/2
@@ -68,15 +78,23 @@ export function getConfigService(http: Http) {
 
 // "Configuration" means Swagger API Client configuration.
 export function getConfiguration(signInService: SignInService): Configuration {
-    return new Configuration({
-      basePath: getBasePath(),
-      accessToken: () => signInService.currentAccessToken
-    });
+  return new Configuration({
+    basePath: getBasePath(),
+    accessToken: () => signInService.currentAccessToken
+  });
+}
+
+export function getLeoConfiguration(signInService: SignInService): LeoConfiguration {
+  return new LeoConfiguration({
+    basePath: environment.leoApiUrl,
+    accessToken: () => signInService.currentAccessToken
+  });
 }
 
 @NgModule({
   imports: [
     ApiModule,
+    LeoApiModule,
     AppRoutingModule,
 
     BrowserModule,
@@ -100,11 +118,14 @@ export function getConfiguration(signInService: SignInService): Configuration {
     BreadcrumbComponent,
     BugReportComponent,
     CohortEditComponent,
+    CohortListComponent,
     ErrorHandlerComponent,
     WorkspaceListComponent,
     InitialErrorComponent,
     InvitationKeyComponent,
     LoginComponent,
+    NotebookListComponent,
+    NotebookRedirectComponent,
     PageTemplateSignedOutComponent,
     ProfilePageComponent,
     RoutingSpinnerComponent,
@@ -114,6 +135,7 @@ export function getConfiguration(signInService: SignInService): Configuration {
     WorkspaceEditComponent,
     WorkspaceNavBarComponent,
     WorkspaceShareComponent,
+    HomepageComponent
   ],
   providers: [
     {
@@ -125,6 +147,11 @@ export function getConfiguration(signInService: SignInService): Configuration {
       provide: Configuration,
       deps: [SignInService],
       useFactory: getConfiguration
+    },
+    {
+      provide: LeoConfiguration,
+      deps: [SignInService],
+      useFactory: getLeoConfiguration
     },
     ErrorHandlingService,
     ServerConfigService,
@@ -143,6 +170,10 @@ export function getConfiguration(signInService: SignInService): Configuration {
       useClass: InterceptedHttp,
       deps: [XHRBackend, RequestOptions, ErrorHandlingService]
     },
+    {
+      provide: WINDOW_REF,
+      useValue: window
+    }
   ],
   // This specifies the top-level components, to load first.
   bootstrap: [AppComponent, ErrorHandlerComponent, InitialErrorComponent]

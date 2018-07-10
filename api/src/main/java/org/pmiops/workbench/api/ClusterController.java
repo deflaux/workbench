@@ -1,14 +1,19 @@
 package org.pmiops.workbench.api;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+
 import javax.inject.Provider;
+
 import org.json.JSONObject;
+import org.pmiops.workbench.db.dao.UserService;
 import org.pmiops.workbench.db.dao.WorkspaceService;
 import org.pmiops.workbench.db.model.CdrVersion;
 import org.pmiops.workbench.db.model.User;
@@ -23,6 +28,7 @@ import org.pmiops.workbench.model.ClusterLocalizeResponse;
 import org.pmiops.workbench.model.ClusterStatus;
 import org.pmiops.workbench.model.EmptyResponse;
 import org.pmiops.workbench.notebooks.NotebooksService;
+import org.pmiops.workbench.notebooks.model.ClusterError;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
@@ -76,23 +82,31 @@ public class ClusterController implements ClusterApiDelegate {
   private final WorkspaceService workspaceService;
   private final FireCloudService fireCloudService;
   private final String apiHostName;
+  private UserService userService;
 
   @Autowired
   ClusterController(NotebooksService notebooksService,
       Provider<User> userProvider,
       WorkspaceService workspaceService,
       FireCloudService fireCloudService,
-      @Qualifier("apiHostName") String apiHostName) {
+      @Qualifier("apiHostName") String apiHostName,
+      UserService userService) {
     this.notebooksService = notebooksService;
     this.userProvider = userProvider;
     this.workspaceService = workspaceService;
     this.fireCloudService = fireCloudService;
     this.apiHostName = apiHostName;
+    this.userService = userService;
   }
 
   @VisibleForTesting
   public void setUserProvider(Provider<User> userProvider) {
     this.userProvider = userProvider;
+  }
+
+  @VisibleForTesting
+  public void setUserService(UserService userService) {
+    this.userService = userService;
   }
 
   @Override
@@ -101,14 +115,35 @@ public class ClusterController implements ClusterApiDelegate {
       throw new FailedPreconditionException(
           "User billing project is not yet initialized, cannot list/create clusters");
     }
-    String project = userProvider.get().getFreeTierBillingProjectName();
+    User user = this.userProvider.get();
+    String project = user.getFreeTierBillingProjectName();
 
     org.pmiops.workbench.notebooks.model.Cluster fcCluster;
     try {
       fcCluster = this.notebooksService.getCluster(project, NotebooksService.DEFAULT_CLUSTER_NAME);
     } catch (NotFoundException e) {
       fcCluster = this.notebooksService.createCluster(
-          project, NotebooksService.DEFAULT_CLUSTER_NAME, userProvider.get().getEmail());
+          project, NotebooksService.DEFAULT_CLUSTER_NAME, user.getEmail());
+    }
+
+    int retries = Optional.ofNullable(user.getClusterCreateRetries()).orElse(0);
+    if (org.pmiops.workbench.notebooks.model.ClusterStatus.ERROR.equals(fcCluster.getStatus())) {
+      if (retries <= 2) {
+        this.userService.setClusterRetryCount(retries + 1);
+        log.warning("Cluster has errored with logs: ");
+        if (fcCluster.getErrors() != null) {
+          for (ClusterError e : fcCluster.getErrors()) {
+            log.warning(e.getErrorMessage());
+          }
+        }
+        log.warning("Retrying cluster creation.");
+
+        this.notebooksService.deleteCluster(project, NotebooksService.DEFAULT_CLUSTER_NAME);
+      }
+    } else if (
+        org.pmiops.workbench.notebooks.model.ClusterStatus.RUNNING.equals(fcCluster.getStatus()) &&
+        retries != 0) {
+      this.userService.setClusterRetryCount(0);
     }
     ClusterListResponse resp = new ClusterListResponse();
     resp.setDefaultCluster(TO_ALL_OF_US_CLUSTER.apply(fcCluster));
@@ -117,6 +152,7 @@ public class ClusterController implements ClusterApiDelegate {
 
   @Override
   public ResponseEntity<EmptyResponse> deleteCluster(String projectName, String clusterName) {
+    this.userService.setClusterRetryCount(0);
     this.notebooksService.deleteCluster(projectName, clusterName);
     return ResponseEntity.ok(new EmptyResponse());
   }

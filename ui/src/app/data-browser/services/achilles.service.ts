@@ -120,7 +120,7 @@ export class AchillesService {
       q['domain_id[]'] = domains;
     }
 
-    */
+
     let search = args.search;
     if (!search || search === '') {
       search = null;
@@ -133,7 +133,7 @@ export class AchillesService {
         return {data: data, totalItems: data.length};
 
       });
-
+*/
   }
 
   logSearchParams(args) {
@@ -189,7 +189,7 @@ export class AchillesService {
 
   // Get concept children for the concept
   getChildConcepts(concept_id: number) {
-    return this.api.getChildConcepts(concept_id)
+    return this.api.getSourceConcepts(concept_id, 0)
       .map(response => {
         const data = response.items;
         return data.map(item => {

@@ -14,9 +14,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Provider;
-import org.pmiops.workbench.api.BigQueryService;
 import org.pmiops.workbench.cohortbuilder.FieldSetQueryBuilder;
-import org.pmiops.workbench.cohortbuilder.ParticipantCounter;
 import org.pmiops.workbench.cohortbuilder.ParticipantCriteria;
 import org.pmiops.workbench.cohortbuilder.TableQueryAndConfig;
 import org.pmiops.workbench.cohortreview.AnnotationQueryBuilder;
@@ -50,22 +48,17 @@ public class CohortMaterializationService {
       Arrays.asList(CohortStatus.INCLUDED, CohortStatus.NEEDS_FURTHER_REVIEW,
           CohortStatus.NOT_REVIEWED);
 
-  private final BigQueryService bigQueryService;
-  private final ParticipantCounter participantCounter;
   private final FieldSetQueryBuilder fieldSetQueryBuilder;
   private final AnnotationQueryBuilder annotationQueryBuilder;
   private final ParticipantCohortStatusDao participantCohortStatusDao;
   private final Provider<CdrBigQuerySchemaConfig> cdrSchemaConfigProvider;
 
   @Autowired
-  public CohortMaterializationService(BigQueryService bigQueryService,
-      ParticipantCounter participantCounter,
+  public CohortMaterializationService(
       FieldSetQueryBuilder fieldSetQueryBuilder,
       AnnotationQueryBuilder annotationQueryBuilder,
       ParticipantCohortStatusDao participantCohortStatusDao,
       Provider<CdrBigQuerySchemaConfig> cdrSchemaConfigProvider) {
-    this.bigQueryService = bigQueryService;
-    this.participantCounter = participantCounter;
     this.fieldSetQueryBuilder = fieldSetQueryBuilder;
     this.annotationQueryBuilder = annotationQueryBuilder;
     this.participantCohortStatusDao = participantCohortStatusDao;
@@ -177,6 +170,12 @@ public class CohortMaterializationService {
             String.format("Use of pagination token %s with new parameter values", paginationToken));
       }
     }
+    // Grab the next pagination token here, because searchRequest can be mutated during query
+    // execution, which will make the hash of SearchRequest no longer match; see
+    // [RW-844].
+    // TODO: consider pagination based on cursor / values rather than offset
+    String nextToken = PaginationToken.of(offset + pageSize, paginationParameters).toBase64();
+
     int limit = pageSize + 1;
 
     MaterializeCohortResponse response = new MaterializeCohortResponse();
@@ -218,9 +217,7 @@ public class CohortMaterializationService {
     }
     response.setResults(responseResults);
     if (hasMoreResults) {
-      // TODO: consider pagination based on cursor / values rather than offset
-      PaginationToken token = PaginationToken.of(offset + pageSize, paginationParameters);
-      response.setNextPageToken(token.toBase64());
+      response.setNextPageToken(nextToken);
     }
     return response;
   }

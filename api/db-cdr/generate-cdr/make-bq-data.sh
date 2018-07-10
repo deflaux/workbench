@@ -56,7 +56,7 @@ WORKBENCH_DATASET=cdr$CDR_VERSION
 
 
 # Check that bq_dataset exists and exit if not
-datasets=`bq --project=$BQ_PROJECT ls`
+datasets=$(bq --project=$BQ_PROJECT ls)
 if [ -z "$datasets" ]
 then
   echo "$BQ_PROJECT.$BQ_DATASET does not exist. Please specify a valid project and dataset."
@@ -70,7 +70,7 @@ else
 fi
 
 # Check that bq_dataset exists and exit if not
-datasets=`bq --project=$BQ_PROJECT ls`
+datasets=$(bq --project=$BQ_PROJECT ls)
 if [ -z "$datasets" ]
 then
   echo "$BQ_PROJECT.$BQ_DATASET does not exist. Please specify a valid project and dataset."
@@ -86,7 +86,7 @@ fi
 
 
 # Make dataset for cdr cloudsql tables
-datasets=`bq --project=$WORKBENCH_PROJECT ls`
+datasets=$(bq --project=$WORKBENCH_PROJECT ls)
 re=\\b$WORKBENCH_DATASET\\b
 if [[ $datasets =~ $re ]]; then
   echo "$WORKBENCH_DATASET exists"
@@ -167,16 +167,14 @@ echo "Inserting concept table data ... "
 bq --quiet --project=$BQ_PROJECT query --nouse_legacy_sql \
 "INSERT INTO \`$WORKBENCH_PROJECT.$WORKBENCH_DATASET.concept\`
 (concept_id, concept_name, domain_id, vocabulary_id, concept_class_id, standard_concept,
-concept_code, valid_start_date, valid_end_date, invalid_reason, count_value, prevalence)
+concept_code, count_value, prevalence, source_count_value)
 SELECT c.concept_id, c.concept_name, c.domain_id, c.vocabulary_id, c.concept_class_id, c.standard_concept, c.concept_code,
-Concat(substr(c.valid_start_date, 1,4), '-',substr(c.valid_start_date,5,2),'-',substr(c.valid_start_date,7,2)) as valid_start_date,
-Concat(substr(c.valid_end_date, 1,4), '-',substr(c.valid_end_date,5,2),'-',substr(c.valid_end_date,7,2)) as valid_end_date,
-invalid_reason, 0 as count_value , 0.0 as prevalence
+0 as count_value , 0.0 as prevalence, 0 as source_count_value
 from \`$BQ_PROJECT.$BQ_DATASET.concept\` c"
 
 # Update counts and prevalence in concept
 q="select count_value from \`${WORKBENCH_PROJECT}.${WORKBENCH_DATASET}.achilles_results\` a where a.analysis_id = 1"
-person_count=`bq --quiet --project=$BQ_PROJECT query --nouse_legacy_sql "$q" |  tr -dc '0-9'`
+person_count=$(bq --quiet --project=$BQ_PROJECT query --nouse_legacy_sql "$q" |  tr -dc '0-9')
 
 
 bq --quiet --project=$BQ_PROJECT query --nouse_legacy_sql \
@@ -184,8 +182,9 @@ bq --quiet --project=$BQ_PROJECT query --nouse_legacy_sql \
 set c.source_count_value = r.source_count_value,c.count_value=r.count_value
 from  (select cast(r.stratum_1 as int64) as concept_id , sum(r.count_value) as count_value , sum(r.source_count_value) as source_count_value
 from \`$WORKBENCH_PROJECT.$WORKBENCH_DATASET.achilles_results\` r
-where r.analysis_id = 3000 and CAST(r.stratum_1 as int64) > "0" group by r.stratum_1) as r
+where r.analysis_id in (3000,2,4,5) and CAST(r.stratum_1 as int64) > "0" group by r.stratum_1) as r
 where r.concept_id = c.concept_id"
+
 
 #Concept prevalence (based on count value and not on source count value)
 bq --quiet --project=$BQ_PROJECT query --nouse_legacy_sql \
@@ -234,24 +233,8 @@ where c1.concept_id=question_id
 echo "Inserting concept_relationship"
 bq --quiet --project=$BQ_PROJECT query --nouse_legacy_sql \
 "INSERT INTO \`$WORKBENCH_PROJECT.$WORKBENCH_DATASET.concept_relationship\`
- (concept_id_1, concept_id_2, relationship_id, valid_start_date, valid_end_date, invalid_reason)
-SELECT c.concept_id_1, c.concept_id_2, c.relationship_id,
-Concat(substr(c.valid_start_date, 1,4), '-',substr(c.valid_start_date,5,2),'-',substr(c.valid_start_date,7,2)) as valid_start_date,
-Concat(substr(c.valid_end_date, 1,4), '-',substr(c.valid_end_date,5,2),'-',substr(c.valid_end_date,7,2)) as valid_end_date,
-c.invalid_reason
+ (concept_id_1, concept_id_2, relationship_id)
+SELECT c.concept_id_1, c.concept_id_2, c.relationship_id
 FROM \`$BQ_PROJECT.$BQ_DATASET.concept_relationship\` c"
 
-###########################
-# achilles_results_concept#
-###########################
-# This make a table with achilles_results and concept names to go with it for java api simplicity
-bq --quiet --project=$BQ_PROJECT query --nouse_legacy_sql \
-"INSERT INTO  \`${WORKBENCH_PROJECT}.${WORKBENCH_DATASET}.achilles_results_concept\`
-(id, analysis_id, stratum_1, stratum_1_name, stratum_2, stratum_2_name, count_value)
-SELECT a.id AS id, a.analysis_id AS analysis_id, a.stratum_1 AS stratum_1,
-c1.concept_name AS stratum_1_name, a.stratum_2 AS stratum_2,c2.concept_name AS stratum_2_name,
-a.count_value AS count_value
-FROM \`${WORKBENCH_PROJECT}.${WORKBENCH_DATASET}.achilles_results\` a
-left join \`${WORKBENCH_PROJECT}.${WORKBENCH_DATASET}.concept\` c1 on a.stratum_1 = cast(c1.concept_id as STRING)
-left join \`${WORKBENCH_PROJECT}.${WORKBENCH_DATASET}.concept\` c2  on a.stratum_2 = cast(c2.concept_id as STRING)"
 

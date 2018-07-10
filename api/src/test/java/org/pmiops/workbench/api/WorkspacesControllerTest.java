@@ -4,13 +4,15 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.fail;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 
 import com.google.cloud.bigquery.FieldValue;
 import com.google.cloud.bigquery.QueryResult;
@@ -27,19 +29,23 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Provider;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.pmiops.workbench.cdr.CdrVersionContext;
+import org.pmiops.workbench.cdr.CdrVersionService;
 import org.pmiops.workbench.cdr.cache.GenderRaceEthnicityConcept;
-import org.pmiops.workbench.cdr.cache.GenderRaceEthnicityType;
 import org.pmiops.workbench.cohortbuilder.ParticipantCounter;
 import org.pmiops.workbench.cohortreview.CohortReviewServiceImpl;
 import org.pmiops.workbench.cohortreview.ReviewTabQueryBuilder;
@@ -73,6 +79,7 @@ import org.pmiops.workbench.model.EmailVerificationStatus;
 import org.pmiops.workbench.model.PageFilterType;
 import org.pmiops.workbench.model.ParticipantCohortAnnotation;
 import org.pmiops.workbench.model.ParticipantCohortAnnotationListResponse;
+import org.pmiops.workbench.model.ParticipantCohortStatusColumns;
 import org.pmiops.workbench.model.ParticipantCohortStatuses;
 import org.pmiops.workbench.model.ResearchPurpose;
 import org.pmiops.workbench.model.ResearchPurposeReviewRequest;
@@ -119,6 +126,7 @@ public class WorkspacesControllerTest {
 
   @TestConfiguration
   @Import({
+    CdrVersionService.class,
     WorkspacesController.class,
     WorkspaceServiceImpl.class,
     CohortsController.class,
@@ -146,9 +154,9 @@ public class WorkspacesControllerTest {
     @Bean
     GenderRaceEthnicityConcept getGenderRaceEthnicityConcept() {
       Map<String, Map<Long, String>> concepts = new HashMap<>();
-      concepts.put(GenderRaceEthnicityType.RACE.name(), new HashMap<>());
-      concepts.put(GenderRaceEthnicityType.GENDER.name(), new HashMap<>());
-      concepts.put(GenderRaceEthnicityType.ETHNICITY.name(), new HashMap<>());
+      concepts.put(ParticipantCohortStatusColumns.RACE.name(), new HashMap<>());
+      concepts.put(ParticipantCohortStatusColumns.GENDER.name(), new HashMap<>());
+      concepts.put(ParticipantCohortStatusColumns.ETHNICITY.name(), new HashMap<>());
       return new GenderRaceEthnicityConcept(concepts);
     }
 
@@ -202,7 +210,23 @@ public class WorkspacesControllerTest {
     cdrVersion = cdrVersionDao.save(cdrVersion);
     cdrVersionId = Long.toString(cdrVersion.getCdrVersionId());
 
+    JSONObject demoCohort = new JSONObject();
+    demoCohort.put("name", "demo");
+    demoCohort.put("description", "demo");
+    demoCohort.put("type", "demo");
+    demoCohort.put("criteria", createDemoCriteria());
+    List<JSONObject> demoCohorts = Collections.singletonList(demoCohort);
+    when(cloudStorageService.readAllDemoCohorts()).thenReturn(demoCohorts);
+    doNothing().when(cloudStorageService).copyAllDemoNotebooks(any());
+
     CLOCK.setInstant(NOW);
+  }
+
+  private JSONObject createDemoCriteria() {
+    JSONObject criteria = new JSONObject();
+    criteria.append("includes", new JSONArray());
+    criteria.append("excludes", new JSONArray());
+    return criteria;
   }
 
   private Blob mockBlob(String bucket, String path) {
@@ -388,9 +412,7 @@ public class WorkspacesControllerTest {
 
     stubGetWorkspace(workspace.getNamespace(), workspace.getName(),
         LOGGED_IN_USER_EMAIL, WorkspaceAccessLevel.OWNER);
-    Workspace workspace2 =
-        workspacesController.getWorkspace(workspace.getNamespace(), workspace.getName())
-            .getBody().getWorkspace();
+    workspacesController.getWorkspace(workspace.getNamespace(), workspace.getName());
   }
 
   @Test
@@ -446,8 +468,7 @@ public class WorkspacesControllerTest {
     UpdateWorkspaceRequest request = new UpdateWorkspaceRequest();
     request.setWorkspace(ws);
     stubGetWorkspace(ws.getNamespace(), ws.getId(), ws.getCreator(), WorkspaceAccessLevel.READER);
-    Workspace updated =
-        workspacesController.updateWorkspace(ws.getNamespace(), ws.getId(), request).getBody();
+    workspacesController.updateWorkspace(ws.getNamespace(), ws.getId(), request);
   }
 
   @Test(expected = ConflictException.class)
@@ -494,7 +515,6 @@ public class WorkspacesControllerTest {
   @Test(expected = BadRequestException.class)
   public void testRejectAfterApproveThrows() throws Exception {
     Workspace ws = createDefaultWorkspace();
-    ResearchPurpose researchPurpose = ws.getResearchPurpose();
     workspacesController.createWorkspace(ws);
 
     ResearchPurposeReviewRequest request = new ResearchPurposeReviewRequest();
@@ -618,7 +638,7 @@ public class WorkspacesControllerTest {
   @Test
   public void testCloneWorkspaceWithCohorts() throws Exception {
     Long participantId = 1L;
-    CdrVersionContext.setCdrVersion(cdrVersion);
+    CdrVersionContext.setCdrVersionNoCheckAuthDomain(cdrVersion);
     Workspace workspace = createDefaultWorkspace();
     workspace = workspacesController.createWorkspace(workspace).getBody();
 
@@ -744,7 +764,8 @@ public class WorkspacesControllerTest {
     List<Cohort> cohorts = cohortsController
         .getCohortsInWorkspace(cloned.getNamespace(), cloned.getId()).getBody().getItems();
     Map<String, Cohort> cohortsByName = Maps.uniqueIndex(cohorts, c -> c.getName());
-    assertThat(cohortsByName.keySet()).containsExactlyElementsIn(ImmutableSet.of("c1", "c2"));
+    assertThat(cohortsByName.keySet()).containsAllOf("c1", "c2");
+    assertThat(cohortsByName.keySet().size()).isEqualTo(3);
     assertThat(cohorts.stream().map(c -> c.getId()).collect(Collectors.toList()))
         .containsNoneOf(c1.getId(), c2.getId());
 
@@ -795,7 +816,7 @@ public class WorkspacesControllerTest {
             participantId);
 
     assertThat(ImmutableSet.of(gotCr1.getCohortReviewId(), gotCr2.getCohortReviewId()))
-        .containsNoneOf(cr1.getCohortReviewId(), cr2.getCohortId());
+        .containsNoneOf(cr1.getCohortReviewId(), cr2.getCohortReviewId());
   }
 
   private void assertCohortAnnotationDefinitions(CohortAnnotationDefinitionListResponse responseList,
@@ -851,7 +872,7 @@ public class WorkspacesControllerTest {
     fcWorkspace.setBucketName("bucket2");
     stubGetWorkspace(fcWorkspace, WorkspaceAccessLevel.OWNER);
     String f1 = "notebooks/f1.ipynb";
-    String f2 = "notebooks/f2.ipynb";
+    String f2 = "notebooks/f2 with spaces.ipynb";
     String f3 = "notebooks/f3.vcf";
     // Note: mockBlob cannot be inlined into thenReturn() due to Mockito nuances.
     List<Blob> blobs = ImmutableList.of(

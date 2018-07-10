@@ -8,6 +8,7 @@ import {ClarityModule} from '@clr/angular';
 import {ProfileStorageService} from 'app/services/profile-storage.service';
 import {ServerConfigService} from 'app/services/server-config.service';
 import {WorkspaceStorageService} from 'app/services/workspace-storage.service';
+import {BugReportComponent} from 'app/views/bug-report/component';
 import {WorkspaceEditComponent, WorkspaceEditMode} from 'app/views/workspace-edit/component';
 import {WorkspaceNavBarComponent} from 'app/views/workspace-nav-bar/component';
 import {WorkspaceShareComponent} from 'app/views/workspace-share/component';
@@ -41,7 +42,7 @@ describe('WorkspaceEditComponent', () => {
     activatedRouteStub = {
       snapshot: {
         url: [
-          {path: 'workspace'},
+          {path: 'workspaces'},
           {path: WorkspaceStubVariables.DEFAULT_WORKSPACE_NS},
           {path: WorkspaceStubVariables.DEFAULT_WORKSPACE_ID},
           {path: 'clone'}
@@ -62,6 +63,7 @@ describe('WorkspaceEditComponent', () => {
     workspacesService = new WorkspacesServiceStub();
     TestBed.configureTestingModule({
       declarations: [
+        BugReportComponent,
         WorkspaceEditComponent,
         WorkspaceNavBarComponent,
         WorkspaceShareComponent
@@ -119,7 +121,7 @@ describe('WorkspaceEditComponent', () => {
     expect(workspacesService.workspaces.length).toBe(1);
     expect(workspacesService.workspaces[0].name).toBe('created');
     expect(TestBed.get(Router).navigate)
-      .toHaveBeenCalledWith(['workspace', 'foo', 'created']);
+      .toHaveBeenCalledWith(['workspaces', 'foo', 'created']);
   }));
 
   it('should support cloning a workspace', inject(

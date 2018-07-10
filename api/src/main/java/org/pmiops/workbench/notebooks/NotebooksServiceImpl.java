@@ -12,7 +12,9 @@ import org.pmiops.workbench.notebooks.api.NotebooksApi;
 import org.pmiops.workbench.notebooks.api.StatusApi;
 import org.pmiops.workbench.notebooks.model.Cluster;
 import org.pmiops.workbench.notebooks.model.ClusterRequest;
+import org.pmiops.workbench.notebooks.model.MachineConfig;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -29,7 +31,8 @@ public class NotebooksServiceImpl implements NotebooksService {
   private final NotebooksRetryHandler retryHandler;
 
   @Autowired
-  public NotebooksServiceImpl(Provider<ClusterApi> clusterApiProvider,
+  public NotebooksServiceImpl(
+      @Qualifier(NotebooksConfig.USER_CLUSTER_API) Provider<ClusterApi> clusterApiProvider,
       Provider<NotebooksApi> notebooksApiProvider,
       Provider<WorkbenchConfig> workbenchConfigProvider, NotebooksRetryHandler retryHandler) {
     this.clusterApiProvider = clusterApiProvider;
@@ -39,14 +42,15 @@ public class NotebooksServiceImpl implements NotebooksService {
   }
 
   private ClusterRequest createFirecloudClusterRequest(String userEmail) {
-    ClusterRequest firecloudClusterRequest = new ClusterRequest();
     Map<String, String> labels = new HashMap<String, String>();
     labels.put(CLUSTER_LABEL_AOU, "true");
     labels.put(CLUSTER_LABEL_CREATED_BY, userEmail);
-    firecloudClusterRequest.setLabels(labels);
-    firecloudClusterRequest.setJupyterUserScriptUri(
-        workbenchConfigProvider.get().firecloud.jupyterUserScriptUri);
-    return firecloudClusterRequest;
+    return new ClusterRequest()
+        .labels(labels)
+        .jupyterUserScriptUri(workbenchConfigProvider.get().firecloud.jupyterUserScriptUri)
+        .machineConfig(new MachineConfig()
+            .masterDiskSize(20 /* GB */)
+            .masterMachineType("n1-standard-1"));
   }
 
   @Override

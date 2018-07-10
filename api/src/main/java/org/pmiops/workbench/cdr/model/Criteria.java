@@ -26,6 +26,8 @@ public class Criteria {
     private String count;
     private String conceptId;
     private String domainId;
+    private boolean attribute;
+    private String predefinedAttributes;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -183,6 +185,34 @@ public class Criteria {
         return this;
     }
 
+    @Column(name = "has_attribute")
+    public boolean getAttribute() {
+        return attribute;
+    }
+
+    public void setAttribute(boolean attribute) {
+        this.attribute = attribute;
+    }
+
+    public Criteria attribute(boolean attribute) {
+        this.attribute = attribute;
+        return this;
+    }
+
+    @Column(name = "predefined_attributes")
+    public String getPredefinedAttributes() {
+        return predefinedAttributes;
+    }
+
+    public void setPredefinedAttributes(String predefinedAttributes) {
+        this.predefinedAttributes = predefinedAttributes;
+    }
+
+    public Criteria predefinedAttributes(String predefinedAttributes) {
+        this.predefinedAttributes = predefinedAttributes;
+        return this;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -197,12 +227,14 @@ public class Criteria {
                 Objects.equals(name, criteria.name) &&
                 Objects.equals(count, criteria.count) &&
                 Objects.equals(conceptId, criteria.conceptId) &&
-                Objects.equals(domainId, criteria.domainId);
+                Objects.equals(domainId, criteria.domainId) &&
+                Objects.equals(attribute, criteria.attribute) &&
+                Objects.equals(predefinedAttributes, criteria.predefinedAttributes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, parentId, type, code, name, group, selectable, count, conceptId, domainId);
+        return Objects.hash(id, parentId, type, code, name, group, selectable, count, conceptId, domainId, attribute, predefinedAttributes);
     }
 
     @Override
