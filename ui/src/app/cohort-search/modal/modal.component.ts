@@ -5,14 +5,16 @@ import {Observable} from 'rxjs/Observable';
 import {Subscription} from 'rxjs/Subscription';
 
 import {
+  activeCriteriaTreeType,
   activeCriteriaType,
   activeParameterList,
+  attributesPage,
   CohortSearchActions,
   wizardOpen,
 } from '../redux';
 import {typeToTitle} from '../utils';
 
-import {CRITERIA_TYPES} from '../constant';
+import {DOMAIN_TYPES, PROGRAM_TYPES} from '../constant';
 
 @Component({
   selector: 'app-modal',
@@ -25,15 +27,19 @@ import {CRITERIA_TYPES} from '../constant';
 export class ModalComponent implements OnInit, OnDestroy {
   @select(wizardOpen) open$: Observable<boolean>;
   @select(activeCriteriaType) criteriaType$: Observable<string>;
+  @select(activeCriteriaTreeType) isFullTree$: Observable<boolean>;
   @select(activeParameterList) selection$: Observable<any>;
+  @select(attributesPage) attributes$: Observable<any>;
 
   ctype: string;
-  subscription;
+  fullTree: boolean;
+  subscription: Subscription;
+  attributesNode: any;
 
   open = false;
   noSelection = true;
   title = '';
-  mode: 'tree' | 'modifiers' = 'tree'; // default to criteria tree
+  mode: 'tree' | 'modifiers' | 'attributes' = 'tree'; // default to criteria tree
 
   constructor(private actions: CohortSearchActions) {}
 
@@ -52,7 +58,13 @@ export class ModalComponent implements OnInit, OnDestroy {
       .subscribe(ctype => {
         this.ctype = ctype;
         this.title = 'Codes';
-        for (const crit of CRITERIA_TYPES) {
+        for (const crit of DOMAIN_TYPES) {
+          const regex = new RegExp(`.*${crit.type}.*`, 'i');
+          if (regex.test(this.ctype)) {
+            this.title = crit.name;
+          }
+        }
+        for (const crit of PROGRAM_TYPES) {
           const regex = new RegExp(`.*${crit.type}.*`, 'i');
           if (regex.test(this.ctype)) {
             this.title = crit.name;
@@ -61,9 +73,24 @@ export class ModalComponent implements OnInit, OnDestroy {
       })
     );
 
+    this.subscription.add(this.isFullTree$
+      .subscribe(fullTree => this.fullTree = fullTree)
+    );
+
     this.subscription.add(this.selection$
       .map(sel => sel.size === 0)
       .subscribe(sel => this.noSelection = sel)
+    );
+
+    this.subscription.add(this.attributes$
+      .subscribe(node => {
+        this.attributesNode = node;
+        if (node.size === 0) {
+          this.mode = 'tree';
+        } else {
+          this.mode = 'attributes';
+        }
+      })
     );
   }
 
@@ -96,6 +123,7 @@ export class ModalComponent implements OnInit, OnDestroy {
   get rootNode() {
     return Map({
       type: this.ctype,
+      fullTree: this.fullTree,
       id: 0,    // root parent ID is always 0
     });
   }

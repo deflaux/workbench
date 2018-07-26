@@ -1,11 +1,16 @@
 import {ChartInfo, Criteria, Modifier, SearchRequest} from 'generated';
 
 export const BEGIN_CRITERIA_REQUEST = 'BEGIN_CRITERIA_REQUEST';
+export const BEGIN_ALL_CRITERIA_REQUEST = 'BEGIN_ALL_CRITERIA_REQUEST';
 export const LOAD_CRITERIA_RESULTS = 'LOAD_CRITERIA_RESULTS';
 export const CANCEL_CRITERIA_REQUEST = 'CANCEL_CRITERIA_REQUEST';
+export const SET_CRITERIA_SEARCH = 'SET_CRITERIA_SEARCH';
 export const CRITERIA_REQUEST_ERROR = 'CRITERIA_REQUEST_ERROR';
 
 export const BEGIN_COUNT_REQUEST = 'BEGIN_COUNT_REQUEST';
+export const BEGIN_ATTR_PREVIEW_REQUEST = 'BEGIN_ATTR_PREVIEW_REQUEST';
+export const LOAD_ATTR_PREVIEW_RESULTS = 'LOAD_ATTR_PREVIEW_RESULTS';
+export const ADD_ATTR_FOR_PREVIEW = 'ADD_ATTR_FOR_PREVIEW';
 export const LOAD_COUNT_RESULTS = 'LOAD_COUNT_RESULTS';
 export const CANCEL_COUNT_REQUEST = 'CANCEL_COUNT_REQUEST';
 export const COUNT_REQUEST_ERROR = 'COUNT_REQUEST_ERROR';
@@ -28,6 +33,8 @@ export const SET_WIZARD_FOCUS = 'SET_WIZARD_FOCUS';
 export const CLEAR_WIZARD_FOCUS = 'CLEAR_WIZARD_FOCUS';
 export const REMOVE_ITEM = 'REMOVE_ITEM';
 export const REMOVE_GROUP = 'REMOVE_GROUP';
+export const SHOW_ATTRIBUTES_PAGE = 'SHOW_ATTRIBUTES_PAGE';
+export const HIDE_ATTRIBUTES_PAGE = 'HIDE_ATTRIBUTES_PAGE';
 
 export const OPEN_WIZARD = 'OPEN_WIZARD';
 export const REOPEN_WIZARD = 'REOPEN_WIZARD';
@@ -40,6 +47,7 @@ export const RESET_STORE = 'RESET_STORE';
 
 export interface ActiveContext {
   criteriaType?: string;
+  fullTree?: boolean;
   role?: keyof SearchRequest;
   groupId?: number;
   itemId?: number;
@@ -48,6 +56,12 @@ export interface ActiveContext {
 export interface ActionTypes {
   BEGIN_CRITERIA_REQUEST: {
     type: typeof BEGIN_CRITERIA_REQUEST;
+    cdrVersionId: number;
+    kind: string;
+    parentId: number;
+  };
+  BEGIN_ALL_CRITERIA_REQUEST: {
+    type: typeof BEGIN_ALL_CRITERIA_REQUEST;
     cdrVersionId: number;
     kind: string;
     parentId: number;
@@ -63,6 +77,10 @@ export interface ActionTypes {
     kind: string;
     parentId: number;
   };
+  SET_CRITERIA_SEARCH: {
+    type: typeof SET_CRITERIA_SEARCH;
+    searchTerms: string;
+  };
   CRITERIA_REQUEST_ERROR: {
     type: typeof CRITERIA_REQUEST_ERROR;
     kind: string;
@@ -76,6 +94,19 @@ export interface ActionTypes {
     entityType: string;
     entityId: string;
     request: SearchRequest;
+  };
+  BEGIN_ATTR_PREVIEW_REQUEST: {
+    type: typeof BEGIN_ATTR_PREVIEW_REQUEST;
+    cdrVersionId: number;
+    request: SearchRequest;
+  };
+  LOAD_ATTR_PREVIEW_RESULTS: {
+    type: typeof LOAD_ATTR_PREVIEW_RESULTS;
+    count: number;
+  };
+  ADD_ATTR_FOR_PREVIEW: {
+    type: typeof ADD_ATTR_FOR_PREVIEW;
+    parameter: any;
   };
   LOAD_COUNT_RESULTS: {
     type: typeof LOAD_COUNT_RESULTS;
@@ -163,6 +194,13 @@ export interface ActionTypes {
   CLEAR_WIZARD_FOCUS: {
     type: typeof CLEAR_WIZARD_FOCUS;
   };
+  SHOW_ATTRIBUTES_PAGE: {
+    type: typeof SHOW_ATTRIBUTES_PAGE;
+    node: any
+  };
+  HIDE_ATTRIBUTES_PAGE: {
+    type: typeof HIDE_ATTRIBUTES_PAGE;
+  };
 
   REMOVE_ITEM: {
     type: typeof REMOVE_ITEM;
@@ -207,11 +245,16 @@ export interface ActionTypes {
 
 export type RootAction =
     ActionTypes[typeof BEGIN_CRITERIA_REQUEST]
+  | ActionTypes[typeof BEGIN_ALL_CRITERIA_REQUEST]
   | ActionTypes[typeof LOAD_CRITERIA_RESULTS]
   | ActionTypes[typeof CANCEL_CRITERIA_REQUEST]
+  | ActionTypes[typeof SET_CRITERIA_SEARCH]
   | ActionTypes[typeof CRITERIA_REQUEST_ERROR]
 
   | ActionTypes[typeof BEGIN_COUNT_REQUEST]
+  | ActionTypes[typeof BEGIN_ATTR_PREVIEW_REQUEST]
+  | ActionTypes[typeof LOAD_ATTR_PREVIEW_RESULTS]
+  | ActionTypes[typeof ADD_ATTR_FOR_PREVIEW]
   | ActionTypes[typeof LOAD_COUNT_RESULTS]
   | ActionTypes[typeof CANCEL_COUNT_REQUEST]
   | ActionTypes[typeof COUNT_REQUEST_ERROR]
@@ -239,6 +282,8 @@ export type RootAction =
   | ActionTypes[typeof WIZARD_FINISH]
   | ActionTypes[typeof WIZARD_CANCEL]
   | ActionTypes[typeof SET_WIZARD_CONTEXT]
+  | ActionTypes[typeof SHOW_ATTRIBUTES_PAGE]
+  | ActionTypes[typeof HIDE_ATTRIBUTES_PAGE]
 
   | ActionTypes[typeof LOAD_ENTITIES]
   | ActionTypes[typeof RESET_STORE]

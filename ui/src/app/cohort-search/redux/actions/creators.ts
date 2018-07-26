@@ -1,11 +1,16 @@
 /* tslint:disable:ordered-imports */
 import {
   BEGIN_CRITERIA_REQUEST,
+  BEGIN_ALL_CRITERIA_REQUEST,
   LOAD_CRITERIA_RESULTS,
   CANCEL_CRITERIA_REQUEST,
+  SET_CRITERIA_SEARCH,
   CRITERIA_REQUEST_ERROR,
 
   BEGIN_COUNT_REQUEST,
+  BEGIN_ATTR_PREVIEW_REQUEST,
+  LOAD_ATTR_PREVIEW_RESULTS,
+  ADD_ATTR_FOR_PREVIEW,
   LOAD_COUNT_RESULTS,
   CANCEL_COUNT_REQUEST,
   COUNT_REQUEST_ERROR,
@@ -33,6 +38,8 @@ import {
   WIZARD_FINISH,
   WIZARD_CANCEL,
   SET_WIZARD_CONTEXT,
+  SHOW_ATTRIBUTES_PAGE,
+  HIDE_ATTRIBUTES_PAGE,
 
   LOAD_ENTITIES,
   RESET_STORE,
@@ -50,6 +57,11 @@ export const requestCriteria =
   ): ActionTypes[typeof BEGIN_CRITERIA_REQUEST] =>
   ({type: BEGIN_CRITERIA_REQUEST, cdrVersionId, kind, parentId});
 
+export const requestAllCriteria =
+  (cdrVersionId: number, kind: string, parentId: number
+  ): ActionTypes[typeof BEGIN_ALL_CRITERIA_REQUEST] =>
+  ({type: BEGIN_ALL_CRITERIA_REQUEST, cdrVersionId, kind, parentId});
+
 export const loadCriteriaRequestResults =
   (kind: string, parentId: number, results: Criteria[]
   ): ActionTypes[typeof LOAD_CRITERIA_RESULTS] =>
@@ -59,6 +71,11 @@ export const cancelCriteriaRequest =
   (kind: string, parentId: number
   ): ActionTypes[typeof CANCEL_CRITERIA_REQUEST] =>
   ({type: CANCEL_CRITERIA_REQUEST, kind, parentId});
+
+export const setCriteriaSearchTerms =
+  (searchTerms: string
+  ): ActionTypes[typeof SET_CRITERIA_SEARCH] =>
+  ({type: SET_CRITERIA_SEARCH, searchTerms});
 
 export const criteriaRequestError =
   (kind: string, parentId: number, error?: any
@@ -72,6 +89,20 @@ export const requestCounts =
   (cdrVersionId: number, entityType: string, entityId: string, request: SearchRequest
   ): ActionTypes[typeof BEGIN_COUNT_REQUEST] =>
   ({type: BEGIN_COUNT_REQUEST, cdrVersionId, entityType, entityId, request});
+
+export const requestAttributePreview =
+  (cdrVersionId: number, request: SearchRequest
+  ): ActionTypes[typeof BEGIN_ATTR_PREVIEW_REQUEST] =>
+  ({type: BEGIN_ATTR_PREVIEW_REQUEST, cdrVersionId, request});
+
+export const loadAttributePreviewRequestResults =
+  (count: number): ActionTypes[typeof LOAD_ATTR_PREVIEW_RESULTS] =>
+  ({type: LOAD_ATTR_PREVIEW_RESULTS, count});
+
+export const addAttributeForPreview =
+  (parameter: any
+  ): ActionTypes[typeof ADD_ATTR_FOR_PREVIEW] =>
+  ({type: ADD_ATTR_FOR_PREVIEW, parameter});
 
 export const loadCountRequestResults =
   (entityType: string, entityId: string, count: number
@@ -167,6 +198,15 @@ export const removeGroupItem =
   (groupId: string, itemId: string
   ): ActionTypes[typeof REMOVE_ITEM] =>
   ({type: REMOVE_ITEM, groupId, itemId});
+
+export const showAttributesPage =
+  (node: any
+  ): ActionTypes[typeof SHOW_ATTRIBUTES_PAGE] =>
+  ({type: SHOW_ATTRIBUTES_PAGE, node});
+
+export const hideAttributesPage =
+  (): ActionTypes[typeof HIDE_ATTRIBUTES_PAGE] =>
+  ({type: HIDE_ATTRIBUTES_PAGE});
 
 /**
  * Context mgmt

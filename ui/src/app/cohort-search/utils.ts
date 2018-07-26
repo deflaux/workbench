@@ -23,7 +23,7 @@ export function nameDisplay(parameter): string {
   if (_type.match(/^DEMO.*/i) && subtype.match(/AGE|DEC/i)) {
     return '';
   } else {
-    return parameter.get('name', '');
+    return parameter.get('name', '').replace(/<(.|\n)*?>/g, '');
   }
 }
 
@@ -35,12 +35,12 @@ export function attributeDisplay(parameter): string {
     const display = [];
     attrs.forEach(attr => {
       const op = {
-        'between': 'In Range',
-        '=': 'Equal To',
-        '>': 'Greater Than',
-        '<': 'Less Than',
-        '>=': 'Greater Than or Equal To',
-        '<=': 'Less Than or Equal To',
+        'BETWEEN': 'In Range',
+        'EQUAL': 'Equal To',
+        'GREATER_THAN': 'Greater Than',
+        'LESS_THAN': 'Less Than',
+        'GREATER_THAN_OR_EQUAL_TO': 'Greater Than or Equal To',
+        'LESS_THAN_OR_EQUAL_TO': 'Less Than or Equal To',
       }[attr.get('operator')];
       const args = attr.get('operands', List()).join(', ');
       display.push(`${op} ${args}`);
@@ -59,8 +59,10 @@ export function typeToTitle(_type: string): string {
     _type = _type.toUpperCase();
   } else if (_type.match(/^PM.*/i)) {
     _type = 'Physical Measurement';
+  } else if (_type.match(/^VISIT.*/i)) {
+    _type = 'Visit';
   } else if (_type.match(/.*standard.*/i)) {
-    return 'Standard';
+      return 'Standard';
   }
   return _type;
 }

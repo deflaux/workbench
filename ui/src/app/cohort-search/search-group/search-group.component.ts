@@ -1,7 +1,7 @@
 import {Component, Input} from '@angular/core';
 import {List} from 'immutable';
 
-import {CRITERIA_TYPES} from '../constant';
+import {DOMAIN_TYPES, PROGRAM_TYPES} from '../constant';
 import {CohortSearchActions} from '../redux';
 
 import {SearchRequest} from 'generated';
@@ -18,7 +18,8 @@ export class SearchGroupComponent {
   @Input() group;
   @Input() role: keyof SearchRequest;
 
-  readonly criteriaTypes = CRITERIA_TYPES;
+  readonly domainTypes = DOMAIN_TYPES;
+  readonly programTypes = PROGRAM_TYPES;
 
   constructor(private actions: CohortSearchActions) {}
 
@@ -38,10 +39,12 @@ export class SearchGroupComponent {
     this.actions.removeGroup(this.role, this.groupId);
   }
 
-  launchWizard(criteriaType: string) {
+  launchWizard(criteria: any) {
     const itemId = this.actions.generateId('items');
+    const criteriaType = criteria.type;
+    const fullTree = criteria.fullTree || false;
     const {role, groupId} = this;
-    const context = {criteriaType, role, groupId, itemId};
+    const context = {criteriaType, role, groupId, itemId, fullTree};
     this.actions.openWizard(itemId, context);
   }
 }

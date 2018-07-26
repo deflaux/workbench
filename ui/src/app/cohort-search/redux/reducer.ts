@@ -15,11 +15,16 @@ import {
 /* tslint:disable:ordered-imports */
 import {
   BEGIN_CRITERIA_REQUEST,
+  BEGIN_ALL_CRITERIA_REQUEST,
   LOAD_CRITERIA_RESULTS,
   CANCEL_CRITERIA_REQUEST,
+  SET_CRITERIA_SEARCH,
   CRITERIA_REQUEST_ERROR,
 
   BEGIN_COUNT_REQUEST,
+  BEGIN_ATTR_PREVIEW_REQUEST,
+  LOAD_ATTR_PREVIEW_RESULTS,
+  ADD_ATTR_FOR_PREVIEW,
   LOAD_COUNT_RESULTS,
   CANCEL_COUNT_REQUEST,
   COUNT_REQUEST_ERROR,
@@ -47,6 +52,8 @@ import {
   WIZARD_FINISH,
   WIZARD_CANCEL,
   SET_WIZARD_CONTEXT,
+  SHOW_ATTRIBUTES_PAGE,
+  HIDE_ATTRIBUTES_PAGE,
 
   LOAD_ENTITIES,
   RESET_STORE,
@@ -66,6 +73,11 @@ export const rootReducer: Reducer<CohortSearchState> =
           .deleteIn(['criteria', 'errors', List([action.kind, action.parentId])])
           .setIn(['criteria', 'requests', action.kind, action.parentId], true);
 
+      case BEGIN_ALL_CRITERIA_REQUEST:
+        return state
+          .deleteIn(['criteria', 'errors', List([action.kind, action.parentId])])
+          .setIn(['criteria', 'requests', action.kind, action.parentId], true);
+
       case LOAD_CRITERIA_RESULTS:
         return state
           .setIn(['criteria', 'tree', action.kind, action.parentId], fromJS(action.results))
@@ -73,6 +85,9 @@ export const rootReducer: Reducer<CohortSearchState> =
 
       case CANCEL_CRITERIA_REQUEST:
         return state.deleteIn(['criteria', 'requests', action.kind, action.parentId]);
+
+      case SET_CRITERIA_SEARCH:
+        return state.setIn(['criteria', 'search', 'terms'], action.searchTerms);
 
       case CRITERIA_REQUEST_ERROR:
         return state
@@ -107,6 +122,26 @@ export const rootReducer: Reducer<CohortSearchState> =
           .setIn(['entities', action.entityType, action.entityId, 'isRequesting'], true)
           .deleteIn(['entities', action.entityType, action.entityId, 'error'])
           .set('initShowChart', true);
+
+      case BEGIN_ATTR_PREVIEW_REQUEST:
+        return state
+          .deleteIn(['wizard', 'calculate', 'error'])
+          .setIn(['wizard', 'calculate', 'requesting'], true);
+
+      case LOAD_ATTR_PREVIEW_RESULTS:
+        return state
+          .setIn(['wizard', 'calculate', 'count'], action.count)
+          .setIn(['wizard', 'calculate', 'requesting'], false);
+
+      case ADD_ATTR_FOR_PREVIEW:
+        return state
+          .updateIn(
+              ['wizard', 'count', 'parameters'],
+            List(),
+            paramList => paramList.includes(action.parameter)
+              ? paramList
+              : paramList.push(action.parameter)
+          );
 
       case CANCEL_CHARTS_REQUEST:
       case CANCEL_COUNT_REQUEST:
@@ -202,7 +237,15 @@ export const rootReducer: Reducer<CohortSearchState> =
       case CLEAR_WIZARD_FOCUS:
         return state.setIn(['wizard', 'focused'], Map());
 
-      case REMOVE_ITEM: {
+      case SHOW_ATTRIBUTES_PAGE:
+        return state
+          .setIn(['wizard', 'item', 'attributes'], action.node)
+          .deleteIn(['wizard', 'calculate', 'count']);
+
+      case HIDE_ATTRIBUTES_PAGE:
+        return state.setIn(['wizard', 'item', 'attributes'], Map());
+
+        case REMOVE_ITEM: {
         state = state
           .updateIn(
             ['entities', 'groups', action.groupId, 'items'],
@@ -239,6 +282,7 @@ export const rootReducer: Reducer<CohortSearchState> =
           item: {
             id: action.itemId,
             type: action.context.criteriaType,
+            fullTree: action.context.fullTree,
             searchParameters: [],
             modifiers: [],
             count: null,

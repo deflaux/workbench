@@ -6,6 +6,7 @@ import {Observable} from 'rxjs/Observable';
 /* tslint:disable:ordered-imports */
 import {
   BEGIN_CRITERIA_REQUEST,
+  BEGIN_ALL_CRITERIA_REQUEST,
   CANCEL_CRITERIA_REQUEST,
 
   BEGIN_COUNT_REQUEST,
@@ -15,6 +16,7 @@ import {
   CANCEL_CHARTS_REQUEST,
 
   BEGIN_PREVIEW_REQUEST,
+  BEGIN_ATTR_PREVIEW_REQUEST,
 
   RootAction,
   ActionTypes,
@@ -31,6 +33,7 @@ import {
   chartsRequestError,
 
   loadPreviewRequestResults,
+  loadAttributePreviewRequestResults,
   previewRequestError,
 } from './actions/creators';
 
@@ -43,7 +46,8 @@ type CSEpic = Epic<RootAction, CohortSearchState>;
 type CritRequestAction = ActionTypes[typeof BEGIN_CRITERIA_REQUEST];
 type CountRequestAction = ActionTypes[typeof BEGIN_COUNT_REQUEST];
 type ChartRequestAction = ActionTypes[typeof BEGIN_CHARTS_REQUEST];
-type PreviewRequestAction = ActionTypes[typeof BEGIN_PREVIEW_REQUEST];
+type PreviewRequestAction = ActionTypes[typeof BEGIN_ATTR_PREVIEW_REQUEST];
+type AttributePreviewRequestAction = ActionTypes[typeof BEGIN_PREVIEW_REQUEST];
 const compare = (obj) => (action) => Map(obj).isSubset(Map(action));
 
 /**
@@ -75,6 +79,21 @@ export class CohortSearchEpics {
     )
   )
 
+  fetchAllCriteria: CSEpic = (action$) => (
+    action$.ofType(BEGIN_ALL_CRITERIA_REQUEST).mergeMap(
+      ({cdrVersionId, kind, parentId}: CritRequestAction) => {
+        const _type = kind.match(/^DEMO.*/i) ? 'DEMO' : kind;
+        return this.service.getCriteriaByType(cdrVersionId, _type)
+          .map(result => loadCriteriaRequestResults(kind, parentId, result.items))
+          .race(action$
+            .ofType(CANCEL_CRITERIA_REQUEST)
+            .filter(compare({kind, parentId}))
+            .first())
+          .catch(e => Observable.of(criteriaRequestError(kind, parentId, e)));
+      }
+    )
+  )
+
   fetchCount: CSEpic = (action$) => (
     action$.ofType(BEGIN_COUNT_REQUEST).mergeMap(
       ({cdrVersionId, entityType, entityId, request}: CountRequestAction) =>
@@ -95,6 +114,16 @@ export class CohortSearchEpics {
       this.service.countParticipants(cdrVersionId, request)
         .map(response => typeof response === 'number' ? response : 0)
         .map(count => loadPreviewRequestResults(count))
+        .catch(e => Observable.of(previewRequestError(e)))
+    )
+  )
+
+  attributePreviewCount: CSEpic = (action$) => (
+    action$.ofType(BEGIN_ATTR_PREVIEW_REQUEST).switchMap(
+      ({cdrVersionId, request}: AttributePreviewRequestAction) =>
+      this.service.countParticipants(cdrVersionId, request)
+        .map(response => typeof response === 'number' ? response : 0)
+        .map(count => loadAttributePreviewRequestResults(count))
         .catch(e => Observable.of(previewRequestError(e)))
     )
   )
