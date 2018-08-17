@@ -311,6 +311,18 @@ public class CohortMaterializationServiceTest extends BigQueryBaseTest {
   }
 
   @Test
+  public void testMaterializeCohortAgePaging() {
+    MaterializeCohortRequest request = makeRequest(2);
+    MaterializeCohortResponse response = cohortMaterializationService.materializeCohort(null,
+        SearchRequests.oldMen(), request);
+    assertThat(response.getNextPageToken()).isNotNull();
+    request.setPageToken(response.getNextPageToken());
+    MaterializeCohortResponse response2 = cohortMaterializationService.materializeCohort(null,
+        SearchRequests.allGenders(), request);
+    assertThat(response2.getNextPageToken()).isNotNull();
+  }
+  
+  @Test
   public void testMaterializeCohortPaging() {
     MaterializeCohortRequest request = makeRequest(2);
     MaterializeCohortResponse response = cohortMaterializationService.materializeCohort(null,

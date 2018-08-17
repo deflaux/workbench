@@ -1,5 +1,7 @@
 package org.pmiops.workbench.test;
 
+import com.google.common.collect.ImmutableList;
+import org.pmiops.workbench.model.Attribute;
 import org.pmiops.workbench.model.SearchGroup;
 import org.pmiops.workbench.model.SearchGroupItem;
 import org.pmiops.workbench.model.SearchParameter;
@@ -67,5 +69,19 @@ public class SearchRequests {
 
   public static SearchRequest allGenders() {
     return genderRequest(MALE_CONCEPT_ID, FEMALE_CONCEPT_ID, WEIRD_CONCEPT_ID);
+  }
+
+  public static SearchRequest oldMen() {
+    SearchGroupItem searchGroupItem = new SearchGroupItem().id("id1").type(DEMO_TYPE);
+    Attribute ageAttribute = new Attribute().name("Age").operator("BETWEEN").operands(ImmutableList.of("80", "120"))
+        .conceptId(null);
+    SearchParameter ageParam = new SearchParameter().parameterId("id2").name("Age").value("Age").type("DEMO")
+        .subtype("AGE").group(false).attributes(ImmutableList.of(ageAttribute));
+    SearchParameter maleParam = new SearchParameter().parameterId("id3").name("Male").value("M").type("DEMO")
+        .subtype("GEN").group(false).conceptId(8507L);
+
+    searchGroupItem.addSearchParametersItem(ageParam);
+    searchGroupItem.addSearchParametersItem(maleParam);
+    return searchRequest(searchGroupItem);
   }
 }
