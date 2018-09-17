@@ -176,7 +176,7 @@ export class AttributesPageComponent implements OnDestroy, OnInit {
     let code = '';
     this.attrs.NUM.forEach(num => {
       code += this.options.find(option => option.value === num.operator).code;
-    })
+    });
     return code;
   }
 
