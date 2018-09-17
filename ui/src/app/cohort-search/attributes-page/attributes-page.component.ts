@@ -39,9 +39,6 @@ export class AttributesPageComponent implements OnDestroy, OnInit {
   subscription: Subscription;
   rangeAlert = false;
   loading: boolean;
-  selectedCode: any;
-  sysOption: any;
-  diaOption: any;
   options = [
     {value: 'EQUAL', name: 'Equals', code: '01'},
     {value: 'GREATER_THAN_OR_EQUAL_TO', name: 'Greater than or Equal to', code: '02'},
@@ -84,7 +81,6 @@ export class AttributesPageComponent implements OnDestroy, OnInit {
         this.options.unshift({value: 'ANY', name: 'Any', code: 'Any'});
         this.attrs.NUM = this.node.get('attributes');
         if (this.attrs.NUM) {
-          this.selectedCode = 'Any';
           this.attrs.NUM.forEach((attr, i) => {
             attr.operator = 'ANY';
             this.dropdowns.selected[i] = 'ANY';
@@ -104,7 +100,6 @@ export class AttributesPageComponent implements OnDestroy, OnInit {
   }
 
   radioChange() {
-    this.selectedCode = 'Any';
     this.preview = this.preview.set('count', this.node.get('count'));
   }
 
@@ -113,24 +108,6 @@ export class AttributesPageComponent implements OnDestroy, OnInit {
     this.dropdowns.selected[index] = option.name;
     if (this.node.get('subtype') === 'BP' && this.dropdowns.oldVals[index] !== option.value) {
       const other = index === 0 ? 1 : 0;
-      if (other === 0) {
-          if (this.diaOption === undefined) {
-              this.diaOption = option.code;
-              this.sysOption = option.code;
-          } else {
-              this.sysOption = option.code;
-          }
-      } else if (other === 1) {
-          if (this.sysOption === undefined) {
-              this.sysOption = option.code;
-              this.diaOption = option.code;
-          } else {
-              this.diaOption = option.code;
-          }
-      }
-      if (this.sysOption && this.diaOption) {
-            this.selectedCode = (this.sysOption + this.diaOption);
-        }
       if (option.value === 'ANY') {
         this.attrs.NUM[other].operator = this.dropdowns.oldVals[other] = 'ANY';
         this.dropdowns.selected[other] = 'Any';
@@ -139,8 +116,6 @@ export class AttributesPageComponent implements OnDestroy, OnInit {
         this.dropdowns.selected[other] = option.name;
       }
       this.dropdowns.oldVals[index] = option.value;
-    } else {
-        this.selectedCode = option.code;
     }
     this.preview = option.value === 'ANY'
       ? this.preview.set('count', this.node.get('count')) : Map();
@@ -195,6 +170,14 @@ export class AttributesPageComponent implements OnDestroy, OnInit {
     return `param${this.node.get('conceptId')
         ? (this.node.get('conceptId') + (this.selectedCode))
         : (this.node.get('id') + (this.selectedCode))}`;
+  }
+
+  get selectedCode() {
+    let code = '';
+    this.attrs.NUM.forEach(num => {
+      code += this.options.find(option => option.value === num.operator).code;
+    })
+    return code;
   }
 
   get displayName() {
@@ -282,8 +265,7 @@ export class AttributesPageComponent implements OnDestroy, OnInit {
 
   requestPreview(attrform: NgForm) {
     const param = this.getParamWithAttributes(attrform.value);
-    this.actions.addAttributeForPreview(param);
-    this.actions.requestAttributePreview();
+    this.actions.requestAttributePreview(param);
   }
 
   addAttrs(attrform: NgForm) {
