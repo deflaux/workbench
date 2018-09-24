@@ -7,4 +7,6 @@ dependencies {
     compile localGroovy()
     compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.6'
     compile group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: '2.9.6'
+    compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
+    compile group: 'io.swagger', name: 'swagger-codegen', version: '2.2.3'
 }
