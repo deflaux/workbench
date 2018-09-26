@@ -1,6 +1,6 @@
-import org.apache.commons.lang3.tuple.ImmutableTriple
+import io.swagger.codegen.DefaultGenerator
+import io.swagger.codegen.config.CodegenConfigurator
 import org.pmiops.workbench.tooling.GenerateAPIListingTask
-import org.pmiops.workbench.tooling.GenerateAPIClientsTask
 
 def swaggerTemplateDir = 'src/main/resources'
 def mergedApiSourceFile = 'src/main/resources/merged.yaml'
@@ -18,42 +18,50 @@ def notebooksApiFile = 'src/main/resources/notebooks.yaml'
 def jiraApiFile = 'src/main/resources/jira.yaml'
 def mandrillApiFile = 'src/main/resources/mandrill_api.yaml'
 
-task generateApiClients(type: GenerateAPIClientsTask) {
-  rootProjDir = projectDir
-  targetFolder = swaggerTargetFolder
-  templateDir = swaggerTemplateDir
-  defaultProps = ['sourceFolder'     : targetFolder]
-  fileConfigs =
-          [new ImmutableTriple<>(mergedApiSourceFile,
-                  'spring',
-                  ['apiPackage'     : 'org.pmiops.workbench.api',
-                   'modelPackage'   : 'org.pmiops.workbench.model',
-                   'useTags'        : 'true',
-                   // Generates delegate interfaces; used to make method annotations work without
-                   // having to copy them to our implementations.
-                   'delegatePattern': 'true']),
-           new ImmutableTriple<>(fireCloudApiFile,
-                   'java',
-                   makeSwaggerCodeGenConfigBlock("firecloud")),
-           new ImmutableTriple<>(notebooksApiFile,
-                   'java',
-                   makeSwaggerCodeGenConfigBlock("notebooks")),
-           new ImmutableTriple<>(jiraApiFile,
-                   'java',
-                   makeSwaggerCodeGenConfigBlock("jira")),
-           new ImmutableTriple<>(mandrillApiFile,
-                   'java',
-                   makeSwaggerCodeGenConfigBlock("mandrill"))
-          ]
+task generateApiClients() {
+  String rootProjDir = projectDir.toString()
+  Map apiProps = ['apiPackage'     : 'org.pmiops.workbench.api',
+                  'modelPackage'   : 'org.pmiops.workbench.model',
+                  'useTags'        : 'true',
+                  'sourceFolder'   : swaggerTargetFolder,
+                  // Generates delegate interfaces; used to make method annotations work without
+                  // having to copy them to our implementations.
+                  'delegatePattern': 'true']
+  [buildClientApiConfig(apiProps, null, mergedApiSourceFile, 'spring', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
+   buildClientApiConfig(null, "firecloud", fireCloudApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
+   buildClientApiConfig(null, "notebooks", notebooksApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
+   buildClientApiConfig(null, "jira", jiraApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
+   buildClientApiConfig(null, "mandrill", mandrillApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir)
+  ].each { config ->
+    new DefaultGenerator().opts(config.toClientOptInput()).generate()
+  }
 }
 
-private static LinkedHashMap<String, String> makeSwaggerCodeGenConfigBlock(String packageName) {
-  ['invokerPackage'   : "org.pmiops.workbench.${packageName}".toString(),
-   'modelPackage'     : "org.pmiops.workbench.${packageName}.model".toString(),
-   'apiPackage'       : "org.pmiops.workbench.${packageName}.api".toString(),
-   'library'          : 'okhttp-gson',
-   'serializableModel': 'true',
-   'dateLibrary'      : 'java8']
+private static CodegenConfigurator buildClientApiConfig(
+        Map props,
+        String packageName,
+        String apiFile,
+        String lang,
+        String rootProjDir,
+        String targetFolder,
+        String templateDir
+) {
+  if (!props && packageName) {
+    props = ['invokerPackage'   : "org.pmiops.workbench.${packageName}".toString(),
+             'modelPackage'     : "org.pmiops.workbench.${packageName}.model".toString(),
+             'apiPackage'       : "org.pmiops.workbench.${packageName}.api".toString(),
+             'sourceFolder'     : targetFolder,
+             'library'          : 'okhttp-gson',
+             'serializableModel': 'true',
+             'dateLibrary'      : 'java8']
+  }
+  CodegenConfigurator config = new CodegenConfigurator()
+  config.setInputSpec("file:///$rootProjDir/$apiFile")
+  config.setOutputDir(rootProjDir)
+  config.setTemplateDir("$rootProjDir/$templateDir")
+  config.setLang(lang)
+  config.setAdditionalProperties(props)
+  config
 }
 
 task generate_local_appengine_web_xml(type: Exec) {
@@ -140,7 +148,7 @@ sourceSets {
 }
 
 validateSwagger.dependsOn generateMergedSwagger
-generateApiClients.dependsOn validateSwagger
+//generateApiClients.dependsOn validateSwagger
 ideaModule.dependsOn generateApiClients
 compileGeneratedJava.dependsOn generateApiClients
 classes.dependsOn generatedClasses
