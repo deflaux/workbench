@@ -148,7 +148,7 @@ sourceSets {
 }
 
 validateSwagger.dependsOn generateMergedSwagger
-//generateApiClients.dependsOn validateSwagger
+generateApiClients.dependsOn validateSwagger
 ideaModule.dependsOn generateApiClients
 compileGeneratedJava.dependsOn generateApiClients
 classes.dependsOn generatedClasses
