@@ -70,7 +70,7 @@ public class UserRecentResourceServiceImpl implements UserRecentResourceService 
   @Override
   public void updateCohortEntry(long workspaceId, long userId, long cohortId,
       Timestamp lastAccessDateTime) {
-    Cohort cohort = cohortDao.findOne(cohortId);
+    Cohort cohort = cohortDao.findById(cohortId).get();
     UserRecentResource resource = getDao().findByUserIdAndWorkspaceIdAndCohort(userId, workspaceId, cohort);
     if (resource == null) {
       handleUserLimit(userId);

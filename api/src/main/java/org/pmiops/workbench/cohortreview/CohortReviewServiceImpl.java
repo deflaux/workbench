@@ -1,5 +1,6 @@
 package org.pmiops.workbench.cohortreview;
 
+import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.pmiops.workbench.db.dao.CohortAnnotationDefinitionDao;
 import org.pmiops.workbench.db.dao.CohortDao;
@@ -61,12 +62,12 @@ public class CohortReviewServiceImpl implements CohortReviewService {
 
     @Override
     public Cohort findCohort(long cohortId) {
-        Cohort cohort = cohortDao.findOne(cohortId);
-        if (cohort == null) {
+        Optional<Cohort> cohort = cohortDao.findById(cohortId);
+        if (!cohort.isPresent()) {
             throw new NotFoundException(
                     String.format("Not Found: No Cohort exists for cohortId: %s", cohortId));
         }
-        return cohort;
+        return cohort.get();
     }
 
     @Override
@@ -174,13 +175,14 @@ public class CohortReviewServiceImpl implements CohortReviewService {
 
     @Override
     public CohortAnnotationDefinition findCohortAnnotationDefinition(Long cohortAnnotationDefinitionId) {
-        CohortAnnotationDefinition cohortAnnotationDefinition = cohortAnnotationDefinitionDao.findOne(cohortAnnotationDefinitionId);
+        Optional<CohortAnnotationDefinition> cohortAnnotationDefinition =
+            cohortAnnotationDefinitionDao.findById(cohortAnnotationDefinitionId);
 
-        if (cohortAnnotationDefinition == null) {
+        if (!cohortAnnotationDefinition.isPresent()) {
             throw new NotFoundException(
                     String.format("Not Found: No cohort annotation definition found for id: %s", cohortAnnotationDefinitionId));
         }
-        return cohortAnnotationDefinition;
+        return cohortAnnotationDefinition.get();
     }
 
     @Override

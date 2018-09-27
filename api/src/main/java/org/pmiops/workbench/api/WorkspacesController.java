@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -263,12 +264,12 @@ public class WorkspacesController implements WorkspacesApiDelegate {
   private void setCdrVersionId(org.pmiops.workbench.db.model.Workspace dbWorkspace, String cdrVersionId) {
     if (cdrVersionId != null) {
       try {
-        CdrVersion cdrVersion = cdrVersionDao.findOne(Long.parseLong(cdrVersionId));
-        if (cdrVersion == null) {
+        Optional<CdrVersion> cdrVersion = cdrVersionDao.findById(Long.parseLong(cdrVersionId));
+        if (!cdrVersion.isPresent()) {
           throw new BadRequestException(
               String.format("CDR version with ID %s not found", cdrVersionId));
         }
-        dbWorkspace.setCdrVersion(cdrVersion);
+        dbWorkspace.setCdrVersion(cdrVersion.get());
       } catch (NumberFormatException e) {
         throw new BadRequestException(String.format(
             "Invalid cdr version ID: %s", cdrVersionId));

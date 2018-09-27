@@ -1,5 +1,6 @@
 package org.pmiops.workbench.cdr.model;
 
+import java.io.Serializable;
 import java.util.Objects;
 import java.util.function.Function;
 import javax.persistence.Column;
@@ -13,7 +14,8 @@ import org.pmiops.workbench.model.Domain;
 
 @Entity
 @Table(name = "domain_info")
-public class DomainInfo {
+// Serializable is needed here due to https://hibernate.atlassian.net/browse/HHH-7668
+public class DomainInfo implements Serializable {
 
   public static final Function<DomainInfo, org.pmiops.workbench.model.DomainInfo> TO_CLIENT_DOMAIN_INFO =
       (domain) -> new org.pmiops.workbench.model.DomainInfo()

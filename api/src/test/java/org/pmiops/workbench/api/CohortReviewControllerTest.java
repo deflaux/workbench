@@ -5,6 +5,7 @@ import static com.google.common.truth.Truth.assertThat;
 import com.google.cloud.bigquery.FieldValue;
 import com.google.cloud.bigquery.QueryResult;
 import com.google.common.collect.ImmutableMap;
+import java.util.Optional;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -585,7 +586,8 @@ public class CohortReviewControllerTest {
       participantCohortStatus1.getParticipantKey().getParticipantId(),
       annotation.getAnnotationId());
 
-    assertThat(participantCohortAnnotationDao.findOne(annotation.getAnnotationId())).isEqualTo(null);
+    assertThat(participantCohortAnnotationDao.findById(annotation.getAnnotationId()))
+        .isEqualTo(Optional.<ParticipantCohortAnnotation>empty());
   }
 
   @Test

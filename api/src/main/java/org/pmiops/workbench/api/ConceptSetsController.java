@@ -10,6 +10,7 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.inject.Provider;
@@ -137,7 +138,7 @@ public class ConceptSetsController implements ConceptSetsApiDelegate {
   private ConceptSet toClientConceptSet(org.pmiops.workbench.db.model.ConceptSet conceptSet) {
     ConceptSet result = TO_CLIENT_CONCEPT_SET.apply(conceptSet);
     if (!conceptSet.getConceptIds().isEmpty()) {
-      Iterable<org.pmiops.workbench.cdr.model.Concept> concepts = conceptDao.findAll(conceptSet.getConceptIds());
+      Iterable<org.pmiops.workbench.cdr.model.Concept> concepts = conceptDao.findAllById(conceptSet.getConceptIds());
       List<org.pmiops.workbench.cdr.model.Concept> conceptList = conceptService.fetchConceptSynonyms(Lists.newArrayList(concepts));
       result.setConcepts(conceptList.stream()
               .map(ConceptsController.TO_CLIENT_CONCEPT)
@@ -152,7 +153,7 @@ public class ConceptSetsController implements ConceptSetsApiDelegate {
       String workspaceId, Long conceptSetId) {
     org.pmiops.workbench.db.model.ConceptSet conceptSet =
         getDbConceptSet(workspaceNamespace, workspaceId, conceptSetId, WorkspaceAccessLevel.WRITER);
-    conceptSetDao.delete(conceptSet.getConceptSetId());
+    conceptSetDao.deleteById(conceptSet.getConceptSetId());
     return ResponseEntity.ok(new EmptyResponse());
   }
 
@@ -230,7 +231,7 @@ public class ConceptSetsController implements ConceptSetsApiDelegate {
 
     if (request.getAddedIds() != null) {
       final Domain domainEnum = dbConceptSet.getDomainEnum();
-      Iterable<org.pmiops.workbench.cdr.model.Concept> concepts = conceptDao.findAll(request.getAddedIds());
+      Iterable<org.pmiops.workbench.cdr.model.Concept> concepts = conceptDao.findAllById(request.getAddedIds());
       conceptService.fetchConceptSynonyms(Lists.newArrayList(concepts));
       List<org.pmiops.workbench.cdr.model.Concept> mismatchedConcepts =
           ImmutableList.copyOf(concepts).stream().filter(concept -> {
@@ -269,12 +270,12 @@ public class ConceptSetsController implements ConceptSetsApiDelegate {
     Workspace workspace = workspaceService.getWorkspaceEnforceAccessLevelAndSetCdrVersion(
         workspaceNamespace, workspaceId, workspaceAccessLevel);
 
-    org.pmiops.workbench.db.model.ConceptSet conceptSet =
-        conceptSetDao.findOne(conceptSetId);
-    if (conceptSet == null || workspace.getWorkspaceId() != conceptSet.getWorkspaceId()) {
+    Optional<org.pmiops.workbench.db.model.ConceptSet> conceptSet =
+        conceptSetDao.findById(conceptSetId);
+    if (!conceptSet.isPresent() || workspace.getWorkspaceId() != conceptSet.get().getWorkspaceId()) {
       throw new NotFoundException(String.format(
           "No concept set with ID %s in workspace %s.", conceptSetId, workspace.getFirecloudName()));
     }
-    return conceptSet;
+    return conceptSet.get();
   }
 }

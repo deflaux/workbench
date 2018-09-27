@@ -71,7 +71,7 @@ public class CohortReviewDaoTest {
 
         assertEquals(expectedCount, jdbcTemplate.queryForObject(sql, sqlParams, Integer.class));
 
-        cohortReview = cohortReviewDao.findOne(cohortReview.getCohortReviewId());
+        cohortReview = cohortReviewDao.findById(cohortReview.getCohortReviewId()).get();
         cohortReview.setReviewedCount(3);
         cohortReviewDao.saveAndFlush(cohortReview);
 

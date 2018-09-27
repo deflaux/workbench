@@ -73,7 +73,10 @@ public class UserService {
         return user;
       } catch (ObjectOptimisticLockingFailureException e) {
         if (numAttempts < MAX_RETRIES) {
-          user = userDao.findOne(user.getUserId());
+          user = userDao.findById(user.getUserId()).orElse(null);
+          if (user == null) {
+            throw new ConflictException("User was deleted");
+          }
           numAttempts++;
         } else {
           throw new ConflictException(String.format("Could not update user %s", user.getUserId()));

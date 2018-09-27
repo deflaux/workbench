@@ -108,7 +108,7 @@ public class CohortBuilderController implements CohortBuilderApiDelegate {
                                                                       String value,
                                                                       String subtype,
                                                                       Long limit) {
-    cdrVersionService.setCdrVersion(cdrVersionDao.findOne(cdrVersionId));
+    cdrVersionService.setCdrVersion(cdrVersionDao.findById(cdrVersionId).get());
     Long resultLimit = Optional.ofNullable(limit).orElse(DEFAULT_LIMIT);
     final List<Criteria> criteriaList = subtype == null ?
       criteriaDao.findCriteriaByTypeForCodeOrName(type, value, resultLimit) :
@@ -124,7 +124,7 @@ public class CohortBuilderController implements CohortBuilderApiDelegate {
   public ResponseEntity<CriteriaListResponse> getDrugBrandOrIngredientByName(Long cdrVersionId,
                                                                              String drugName,
                                                                              Long limit) {
-    cdrVersionService.setCdrVersion(cdrVersionDao.findOne(cdrVersionId));
+    cdrVersionService.setCdrVersion(cdrVersionDao.findById(cdrVersionId).get());
     Long resultLimit = Optional.ofNullable(limit).orElse(DEFAULT_LIMIT);
     final List<Criteria> criteriaList = criteriaDao.findDrugBrandOrIngredientByName(drugName, resultLimit);
 
@@ -136,7 +136,7 @@ public class CohortBuilderController implements CohortBuilderApiDelegate {
 
   @Override
   public ResponseEntity<CriteriaListResponse> getDrugIngredientByConceptId(Long cdrVersionId, Long conceptId) {
-    cdrVersionService.setCdrVersion(cdrVersionDao.findOne(cdrVersionId));
+    cdrVersionService.setCdrVersion(cdrVersionDao.findById(cdrVersionId).get());
     final List<Criteria> criteriaList = criteriaDao.findDrugIngredientByConceptId(conceptId);
 
     CriteriaListResponse criteriaResponse = new CriteriaListResponse();
@@ -151,7 +151,7 @@ public class CohortBuilderController implements CohortBuilderApiDelegate {
    */
   @Override
   public ResponseEntity<Long> countParticipants(Long cdrVersionId, SearchRequest request) {
-    cdrVersionService.setCdrVersion(cdrVersionDao.findOne(cdrVersionId));
+    cdrVersionService.setCdrVersion(cdrVersionDao.findById(cdrVersionId).get());
 
     QueryJobConfiguration qjc = bigQueryService.filterBigQueryConfig(participantCounter.buildParticipantCounterQuery(
       new ParticipantCriteria(request)));
@@ -164,7 +164,7 @@ public class CohortBuilderController implements CohortBuilderApiDelegate {
 
   @Override
   public ResponseEntity<DemoChartInfoListResponse> getDemoChartInfo(Long cdrVersionId, SearchRequest request) {
-    cdrVersionService.setCdrVersion(cdrVersionDao.findOne(cdrVersionId));
+    cdrVersionService.setCdrVersion(cdrVersionDao.findById(cdrVersionId).get());
     DemoChartInfoListResponse response = new DemoChartInfoListResponse();
 
     QueryJobConfiguration qjc = bigQueryService.filterBigQueryConfig(participantCounter.buildDemoChartInfoCounterQuery(
@@ -184,7 +184,7 @@ public class CohortBuilderController implements CohortBuilderApiDelegate {
 
   @Override
   public ResponseEntity<CriteriaAttributeListResponse> getCriteriaAttributeByConceptId(Long cdrVersionId, Long conceptId) {
-    cdrVersionService.setCdrVersion(cdrVersionDao.findOne(cdrVersionId));
+    cdrVersionService.setCdrVersion(cdrVersionDao.findById(cdrVersionId).get());
     final List<CriteriaAttribute> criteriaAttributeList = criteriaAttributeDao.findCriteriaAttributeByConceptId(conceptId);
 
     CriteriaAttributeListResponse criteriaAttributeResponse = new CriteriaAttributeListResponse();
@@ -212,7 +212,7 @@ public class CohortBuilderController implements CohortBuilderApiDelegate {
       .findFirst()
       .orElseThrow(() -> new BadRequestException(String.format("Criteria subtype: %s is not valid.", st ))));
 
-    cdrVersionService.setCdrVersion(cdrVersionDao.findOne(cdrVersionId));
+    cdrVersionService.setCdrVersion(cdrVersionDao.findById(cdrVersionId).get());
     List<Criteria> criteriaList;
     if (parentId != null) {
       if (subtype != null) {
@@ -236,7 +236,7 @@ public class CohortBuilderController implements CohortBuilderApiDelegate {
 
   @Override
   public ResponseEntity<CriteriaListResponse> getCriteriaTreeQuickSearch(Long cdrVersionId, String type, String value) {
-    cdrVersionService.setCdrVersion(cdrVersionDao.findOne(cdrVersionId));
+    cdrVersionService.setCdrVersion(cdrVersionDao.findById(cdrVersionId).get());
     String nameOrCode = value + "*";
     final List<Criteria> criteriaList = criteriaDao.findCriteriaByTypeAndNameOrCode(type, nameOrCode);
 
@@ -248,7 +248,7 @@ public class CohortBuilderController implements CohortBuilderApiDelegate {
 
   @Override
   public ResponseEntity<ParticipantDemographics> getParticipantDemographics(Long cdrVersionId) {
-    cdrVersionService.setCdrVersion(cdrVersionDao.findOne(cdrVersionId));
+    cdrVersionService.setCdrVersion(cdrVersionDao.findById(cdrVersionId).get());
 
     Map<String, Map<Long, String>> concepts = genderRaceEthnicityConceptProvider.get().getConcepts();
     List<ConceptIdName> genderList = concepts.get(ParticipantCohortStatusColumns.GENDER.name()).entrySet().stream()

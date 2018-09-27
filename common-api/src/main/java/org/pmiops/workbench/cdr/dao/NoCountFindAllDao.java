@@ -22,8 +22,8 @@ public class NoCountFindAllDao<T, I extends Serializable> extends SimpleJpaRepos
   @Override
   protected <S extends T> Page<S> readPage(TypedQuery<S> query, final Class<S> domainClass, Pageable pageable,
       final Specification<S> spec) {
-    query.setFirstResult(pageable.getOffset());
-    query.setMaxResults(pageable.getPageSize());
+    query.setFirstResult((int) pageable.getOffset());
+    query.setMaxResults((int) pageable.getPageSize());
     List<S> content = query.getResultList();
     return new PageImpl<S>(content, pageable, content.size());
   }

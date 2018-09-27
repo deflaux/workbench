@@ -12,6 +12,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.TreeSet;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -68,7 +69,7 @@ public class CohortReviewServiceImplTest {
     public void findCohortNotFound() throws Exception {
         long cohortId = 1;
 
-        when(cohortDao.findOne(cohortId)).thenReturn(null);
+        when(cohortDao.findById(cohortId)).thenReturn(Optional.<Cohort>empty());
 
         try {
             cohortReviewService.findCohort(cohortId);
@@ -77,7 +78,7 @@ public class CohortReviewServiceImplTest {
             assertEquals("Not Found: No Cohort exists for cohortId: " + cohortId, e.getMessage());
         }
 
-        verify(cohortDao).findOne(cohortId);
+        verify(cohortDao).findById(cohortId);
         verifyNoMoreMockInteractions();
     }
 
@@ -86,11 +87,11 @@ public class CohortReviewServiceImplTest {
         long cohortId = 1;
 
         Cohort cohort = new Cohort();
-        when(cohortDao.findOne(cohortId)).thenReturn(cohort);
+        when(cohortDao.findById(cohortId)).thenReturn(Optional.of(cohort));
 
         assertEquals(cohort, cohortReviewService.findCohort(cohortId));
 
-        verify(cohortDao).findOne(cohortId);
+        verify(cohortDao).findById(cohortId);
         verifyNoMoreMockInteractions();
     }
 
@@ -260,7 +261,7 @@ public class CohortReviewServiceImplTest {
     public void findCohortAnnotationDefinitionNotFound() throws Exception {
         long cohortAnnotationDefinitionId = 1;
 
-        when(cohortAnnotationDefinitionDao.findOne(cohortAnnotationDefinitionId)).thenReturn(null);
+        when(cohortAnnotationDefinitionDao.findById(cohortAnnotationDefinitionId)).thenReturn(Optional.<CohortAnnotationDefinition>empty());
 
         try {
             cohortReviewService.findCohortAnnotationDefinition(cohortAnnotationDefinitionId);
@@ -270,7 +271,7 @@ public class CohortReviewServiceImplTest {
                     + cohortAnnotationDefinitionId, e.getMessage());
         }
 
-        verify(cohortAnnotationDefinitionDao).findOne(cohortAnnotationDefinitionId);
+        verify(cohortAnnotationDefinitionDao).findById(cohortAnnotationDefinitionId);
 
         verifyNoMoreMockInteractions();
     }
@@ -279,11 +280,12 @@ public class CohortReviewServiceImplTest {
     public void findCohortAnnotationDefinition() throws Exception {
         long cohortAnnotationDefinitionId = 1;
 
-        when(cohortAnnotationDefinitionDao.findOne(cohortAnnotationDefinitionId)).thenReturn(new CohortAnnotationDefinition());
+        when(cohortAnnotationDefinitionDao.findById(cohortAnnotationDefinitionId))
+            .thenReturn(Optional.of(new CohortAnnotationDefinition()));
 
         cohortReviewService.findCohortAnnotationDefinition(cohortAnnotationDefinitionId);
 
-        verify(cohortAnnotationDefinitionDao).findOne(cohortAnnotationDefinitionId);
+        verify(cohortAnnotationDefinitionDao).findById(cohortAnnotationDefinitionId);
 
         verifyNoMoreMockInteractions();
     }
@@ -349,14 +351,16 @@ public class CohortReviewServiceImplTest {
 
         CohortAnnotationDefinition cohortAnnotationDefinition = createCohortAnnotationDefinition(cohortAnnotationDefinitionId, annotationType);
 
-        when(cohortAnnotationDefinitionDao.findOne(cohortAnnotationDefinitionId)).thenReturn(cohortAnnotationDefinition);
+        when(cohortAnnotationDefinitionDao.findById(cohortAnnotationDefinitionId)).thenReturn(Optional.of(cohortAnnotationDefinition));
+
         when(participantCohortAnnotationDao.findByCohortReviewIdAndCohortAnnotationDefinitionIdAndParticipantId(cohortReviewId,
                 cohortAnnotationDefinitionId, participantId)).thenReturn(null);
         when(participantCohortAnnotationDao.save(participantCohortAnnotation)).thenReturn(participantCohortAnnotation);
 
         cohortReviewService.saveParticipantCohortAnnotation(cohortReviewId, participantCohortAnnotation);
 
-        verify(cohortAnnotationDefinitionDao, atLeastOnce()).findOne(cohortAnnotationDefinitionId);
+        verify(cohortAnnotationDefinitionDao, atLeastOnce()).findById(cohortAnnotationDefinitionId);
+
         verify(participantCohortAnnotationDao, atLeastOnce()).findByCohortReviewIdAndCohortAnnotationDefinitionIdAndParticipantId(cohortReviewId,
                 cohortAnnotationDefinitionId, participantId);
         verify(participantCohortAnnotationDao, atLeastOnce()).save(participantCohortAnnotation);
@@ -375,7 +379,8 @@ public class CohortReviewServiceImplTest {
                 .cohortReviewId(cohortReviewId)
                 .participantId(participantId);
 
-        when(cohortAnnotationDefinitionDao.findOne(cohortAnnotationDefinitionId)).thenReturn(null);
+        when(cohortAnnotationDefinitionDao.findById(cohortAnnotationDefinitionId)).thenReturn(Optional.<CohortAnnotationDefinition>empty());
+
 
         try {
             cohortReviewService.saveParticipantCohortAnnotation(cohortReviewId, participantCohortAnnotation);
@@ -384,7 +389,7 @@ public class CohortReviewServiceImplTest {
             assertEquals("Not Found: No cohort annotation definition found for id: " + cohortAnnotationDefinitionId, e.getMessage());
         }
 
-        verify(cohortAnnotationDefinitionDao).findOne(cohortAnnotationDefinitionId);
+        verify(cohortAnnotationDefinitionDao).findById(cohortAnnotationDefinitionId);
         verifyNoMoreMockInteractions();
     }
 
@@ -402,7 +407,8 @@ public class CohortReviewServiceImplTest {
 
         CohortAnnotationDefinition cohortAnnotationDefinition = createCohortAnnotationDefinition(cohortAnnotationDefinitionId, AnnotationType.BOOLEAN);
 
-        when(cohortAnnotationDefinitionDao.findOne(cohortAnnotationDefinitionId)).thenReturn(cohortAnnotationDefinition);
+        when(cohortAnnotationDefinitionDao.findById(cohortAnnotationDefinitionId)).thenReturn(Optional.of(cohortAnnotationDefinition));
+
         when(participantCohortAnnotationDao.findByCohortReviewIdAndCohortAnnotationDefinitionIdAndParticipantId(cohortReviewId,
                 cohortAnnotationDefinitionId, participantId)).thenReturn(participantCohortAnnotation);
 
@@ -413,7 +419,7 @@ public class CohortReviewServiceImplTest {
             assertEquals("Invalid Request: Cohort annotation definition exists for id: " + cohortAnnotationDefinitionId, e.getMessage());
         }
 
-        verify(cohortAnnotationDefinitionDao).findOne(cohortAnnotationDefinitionId);
+        verify(cohortAnnotationDefinitionDao).findById(cohortAnnotationDefinitionId);
         verifyNoMoreMockInteractions();
     }
 
@@ -455,13 +461,14 @@ public class CohortReviewServiceImplTest {
 
         when(participantCohortAnnotationDao.findByAnnotationIdAndCohortReviewIdAndParticipantId(annotationId,
                 cohortReviewId, participantId)).thenReturn(participantCohortAnnotation);
-        when(cohortAnnotationDefinitionDao.findOne(cohortAnnotationDefinitionId)).thenReturn(cohortAnnotationDefinition);
+        when(cohortAnnotationDefinitionDao.findById(cohortAnnotationDefinitionId)).thenReturn(Optional.of(cohortAnnotationDefinition));
+
 
         cohortReviewService.updateParticipantCohortAnnotation(annotationId, cohortReviewId, participantId, modifyRequest);
 
         verify(participantCohortAnnotationDao).findByAnnotationIdAndCohortReviewIdAndParticipantId(annotationId,
                 cohortReviewId, participantId);
-        verify(cohortAnnotationDefinitionDao).findOne(cohortAnnotationDefinitionId);
+        verify(cohortAnnotationDefinitionDao).findById(cohortAnnotationDefinitionId);
         verifyNoMoreMockInteractions();
     }
 
@@ -483,7 +490,8 @@ public class CohortReviewServiceImplTest {
 
         when(participantCohortAnnotationDao.findByAnnotationIdAndCohortReviewIdAndParticipantId(annotationId,
                 cohortReviewId, participantId)).thenReturn(participantCohortAnnotation);
-        when(cohortAnnotationDefinitionDao.findOne(cohortAnnotationDefinitionId)).thenReturn(null);
+        when(cohortAnnotationDefinitionDao.findById(cohortAnnotationDefinitionId)).thenReturn(Optional.<CohortAnnotationDefinition>empty());
+
 
         try {
             cohortReviewService.updateParticipantCohortAnnotation(annotationId, cohortReviewId, participantId, modifyRequest);
@@ -494,7 +502,7 @@ public class CohortReviewServiceImplTest {
 
         verify(participantCohortAnnotationDao).findByAnnotationIdAndCohortReviewIdAndParticipantId(annotationId,
                 cohortReviewId, participantId);
-        verify(cohortAnnotationDefinitionDao).findOne(cohortAnnotationDefinitionId);
+        verify(cohortAnnotationDefinitionDao).findById(cohortAnnotationDefinitionId);
         verifyNoMoreMockInteractions();
     }
 
@@ -614,7 +622,7 @@ public class CohortReviewServiceImplTest {
     }
 
     private void assertParticipantCohortAnnotationBadRequest(ParticipantCohortAnnotation participantCohortAnnotation, CohortAnnotationDefinition cohortAnnotationDefinition) {
-        when(cohortAnnotationDefinitionDao.findOne(cohortAnnotationDefinition.getCohortAnnotationDefinitionId())).thenReturn(cohortAnnotationDefinition);
+        when(cohortAnnotationDefinitionDao.findById(cohortAnnotationDefinition.getCohortAnnotationDefinitionId())).thenReturn(Optional.of(cohortAnnotationDefinition));
 
         try {
             cohortReviewService.saveParticipantCohortAnnotation(participantCohortAnnotation.getCohortReviewId(), participantCohortAnnotation);
@@ -624,7 +632,7 @@ public class CohortReviewServiceImplTest {
                     + " value for annotation defintion id: " + cohortAnnotationDefinition.getCohortAnnotationDefinitionId(), e.getMessage());
         }
 
-        verify(cohortAnnotationDefinitionDao, atLeastOnce()).findOne(cohortAnnotationDefinition.getCohortAnnotationDefinitionId());
+        verify(cohortAnnotationDefinitionDao, atLeastOnce()).findById(cohortAnnotationDefinition.getCohortAnnotationDefinitionId());
         verifyNoMoreMockInteractions();
     }
 
@@ -638,7 +646,8 @@ public class CohortReviewServiceImplTest {
 
         when(participantCohortAnnotationDao.findByAnnotationIdAndCohortReviewIdAndParticipantId(annotationId,
                 cohortReviewId, participantId)).thenReturn(participantCohortAnnotation);
-        when(cohortAnnotationDefinitionDao.findOne(cohortAnnotationDefinitionId)).thenReturn(cohortAnnotationDefinition);
+        when(cohortAnnotationDefinitionDao.findById(cohortAnnotationDefinitionId)).thenReturn(Optional.of(cohortAnnotationDefinition));
+
 
         try {
             cohortReviewService.updateParticipantCohortAnnotation(annotationId, cohortReviewId, participantId, new ModifyParticipantCohortAnnotationRequest());
@@ -649,7 +658,8 @@ public class CohortReviewServiceImplTest {
         }
 
         verify(participantCohortAnnotationDao, atLeastOnce()).findByAnnotationIdAndCohortReviewIdAndParticipantId(annotationId, cohortReviewId, participantId);
-        verify(cohortAnnotationDefinitionDao, atLeastOnce()).findOne(cohortAnnotationDefinitionId);
+        verify(cohortAnnotationDefinitionDao, atLeastOnce()).findById(cohortAnnotationDefinitionId);
+
         verifyNoMoreMockInteractions();
     }
 

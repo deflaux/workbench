@@ -200,7 +200,7 @@ public class CohortMaterializationService {
           tableQuery.getTableName());
     }
 
-    Iterable<Concept> concepts = conceptDao.findAll(conceptIds);
+    Iterable<Concept> concepts = conceptDao.findAllById(conceptIds);
     List<Long> standardConceptIds = Lists.newArrayList();
     List<Long> sourceConceptIds = Lists.newArrayList();
     for (Concept concept : concepts) {

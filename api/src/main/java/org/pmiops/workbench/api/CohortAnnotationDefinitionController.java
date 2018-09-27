@@ -1,5 +1,6 @@
 package org.pmiops.workbench.api;
 
+import java.util.Optional;
 import org.pmiops.workbench.cohortreview.AnnotationQueryBuilder;
 import org.pmiops.workbench.db.dao.CohortAnnotationDefinitionDao;
 import org.pmiops.workbench.db.dao.CohortDao;
@@ -139,7 +140,7 @@ public class CohortAnnotationDefinitionController implements CohortAnnotationDef
 
         findCohortAnnotationDefinition(cohortId, annotationDefinitionId);
 
-        cohortAnnotationDefinitionDao.delete(annotationDefinitionId);
+        cohortAnnotationDefinitionDao.deleteById(annotationDefinitionId);
 
         return ResponseEntity.ok(new EmptyResponse());
     }
@@ -230,12 +231,12 @@ public class CohortAnnotationDefinitionController implements CohortAnnotationDef
     }
 
     private Cohort findCohort(long cohortId) {
-        Cohort cohort = cohortDao.findOne(cohortId);
-        if (cohort == null) {
+        Optional<Cohort> cohort = cohortDao.findById(cohortId);
+        if (!cohort.isPresent()) {
             throw new NotFoundException(
                     String.format("Not Found: No Cohort exists for cohortId: %s", cohortId));
         }
-        return cohort;
+        return cohort.get();
     }
 
     private void validateMatchingWorkspace(String workspaceNamespace, String workspaceName, long workspaceId) {

@@ -245,6 +245,6 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
   @Override
   public Workspace findByWorkspaceId(long workspaceId) {
-    return getDao().findOne(workspaceId);
+    return getDao().findById(workspaceId).orElse(null);
   }
 }
