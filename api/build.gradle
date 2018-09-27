@@ -19,21 +19,23 @@ def jiraApiFile = 'src/main/resources/jira.yaml'
 def mandrillApiFile = 'src/main/resources/mandrill_api.yaml'
 
 task generateApiClients() {
-  String rootProjDir = projectDir.toString()
-  Map apiProps = ['apiPackage'     : 'org.pmiops.workbench.api',
-                  'modelPackage'   : 'org.pmiops.workbench.model',
-                  'useTags'        : 'true',
-                  'sourceFolder'   : swaggerTargetFolder,
-                  // Generates delegate interfaces; used to make method annotations work without
-                  // having to copy them to our implementations.
-                  'delegatePattern': 'true']
-  [buildClientApiConfig(apiProps, null, mergedApiSourceFile, 'spring', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
-   buildClientApiConfig(null, "firecloud", fireCloudApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
-   buildClientApiConfig(null, "notebooks", notebooksApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
-   buildClientApiConfig(null, "jira", jiraApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
-   buildClientApiConfig(null, "mandrill", mandrillApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir)
-  ].each { config ->
-    new DefaultGenerator().opts(config.toClientOptInput()).generate()
+  if (file("file:///$projectDir/$mergedApiSourceFile").exists()) {
+    String rootProjDir = projectDir.toString()
+    Map apiProps = ['apiPackage'     : 'org.pmiops.workbench.api',
+                    'modelPackage'   : 'org.pmiops.workbench.model',
+                    'useTags'        : 'true',
+                    'sourceFolder'   : swaggerTargetFolder,
+                    // Generates delegate interfaces; used to make method annotations work without
+                    // having to copy them to our implementations.
+                    'delegatePattern': 'true']
+    [buildClientApiConfig(apiProps, null, mergedApiSourceFile, 'spring', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
+     buildClientApiConfig(null, "firecloud", fireCloudApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
+     buildClientApiConfig(null, "notebooks", notebooksApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
+     buildClientApiConfig(null, "jira", jiraApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir),
+     buildClientApiConfig(null, "mandrill", mandrillApiFile, 'java', rootProjDir, swaggerTargetFolder, swaggerTemplateDir)
+    ].each { config ->
+      new DefaultGenerator().opts(config.toClientOptInput()).generate()
+    }
   }
 }
 
