@@ -2,13 +2,13 @@ import {Component, ViewChild} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {ConceptSet, ConceptsService, DomainInfo} from '../../../generated';
 import {ConceptSetsService} from '../../../generated/api/conceptSets.service';
-import {ConceptAddModalComponent} from '../concept-add-modal/component';
 @Component({
-  selector: 'app-concept-list-modal',
+  selector: 'app-create-concept-modal',
   styleUrls: [
-    './component.css',
     '../../styles/buttons.css',
     '../../styles/inputs.css',
+    '../../styles/errors.css',
+    './component.css'
   ],
   templateUrl: './component.html',
 })
@@ -20,6 +20,8 @@ export class CreateConceptModalComponent {
   description: string;
   domain: any;
   conceptDomainList: Array<DomainInfo> = [];
+  required = false;
+  alreadyExist = false;
 
   constructor(private conceptsService: ConceptsService,
               private conceptSetService: ConceptSetsService,
@@ -29,20 +31,36 @@ export class CreateConceptModalComponent {
   }
 
   open(): void {
+    this.required = false;
+    this.alreadyExist = false;
     this.reset();
     this.conceptsService.getDomainInfo(this.wsNamespace, this.wsId).subscribe((response) => {
       this.conceptDomainList = response.items;
+      this.domain = this.conceptDomainList[0];
     });
       this.modalOpen = true;
+  }
+
+  close(): void {
+    this.modalOpen = false;
   }
 
   reset(): void {
     this.name = '';
     this.description = '';
     this.domain = '';
+    this.alreadyExist = false;
+    this.required = false;
   }
 
   saveConcept(): void {
+    this.required = false;
+    this.alreadyExist = false;
+
+    if (!this.name) {
+      this.required = true;
+      return;
+    }
     const concepts: ConceptSet = {
       name: this.name,
       description: this.description,
@@ -51,8 +69,9 @@ export class CreateConceptModalComponent {
     this.conceptSetService.createConceptSet(this.wsNamespace, this.wsId, concepts)
         .subscribe((response) => {
       this.modalOpen = false;
-    });
-    this.modalOpen = false;
+    }, () => {
+          this.alreadyExist = true;
+        });
   }
 }
 
