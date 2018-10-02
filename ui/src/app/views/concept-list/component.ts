@@ -1,7 +1,8 @@
 import {Component, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
 import {ConceptSetsService} from '../../../generated/api/conceptSets.service';
-import {CreateConceptModalComponent} from '../concept-create-modal/component';
+import {CreateConceptSetModalComponent
+} from '../conceptset-create-modal/component';
 
 @Component({
   styleUrls: [
@@ -11,6 +12,7 @@ import {CreateConceptModalComponent} from '../concept-create-modal/component';
 export class ConceptsListComponent implements OnInit {
   wsNamespace: string;
   wsId: string;
+  concept: any[] = [];
 
   constructor(private conceptsService: ConceptSetsService,
               private route: ActivatedRoute) {
@@ -18,8 +20,8 @@ export class ConceptsListComponent implements OnInit {
   this.wsId = this.route.snapshot.params['wsid'];
 }
 
-  @ViewChild(CreateConceptModalComponent)
-  conceptCreateModal: CreateConceptModalComponent;
+  @ViewChild(CreateConceptSetModalComponent)
+  conceptCreateModal: CreateConceptSetModalComponent;
 
   addConcept() {
    this.conceptCreateModal.open();
@@ -28,7 +30,7 @@ export class ConceptsListComponent implements OnInit {
   ngOnInit() {
  this.conceptsService.getConceptSetsInWorkspace(this.wsNamespace, this.wsId)
        .subscribe((response) => {
-     const res = response;
+     this.concept = response.items;
    });
   }
 }

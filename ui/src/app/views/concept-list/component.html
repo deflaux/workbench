@@ -3,5 +3,10 @@
     Create a <br/> Concept Set <br/>
     <clr-icon shape="plus-circle" class="plus-circle"></clr-icon>
   </div>
+  <div *ngFor="let concepts of concept">
+    <p><label>{{concepts.description}}</label>
+    </p>
+
+  </div>
 </div>
-<app-concept-list-modal></app-concept-list-modal>
+<app-create-conceptset-modal></app-create-conceptset-modal>

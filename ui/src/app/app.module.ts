@@ -32,7 +32,7 @@ import {BugReportComponent} from './views/bug-report/component';
 import {CohortEditModalComponent} from './views/cohort-edit-modal/component';
 import {CohortListComponent} from './views/cohort-list/component';
 import {ConceptAddModalComponent} from './views/concept-add-modal/component';
-import {CreateConceptModalComponent} from './views/concept-create-modal/component';
+import {CreateConceptSetModalComponent} from './views/conceptset-create-modal/component';
 import {ConceptHomepageComponent} from './views/concept-homepage/component';
 import {ConceptTableComponent} from './views/concept-table/component';
 import {ConfirmDeleteModalComponent} from './views/confirm-delete-modal/component';
@@ -132,7 +132,7 @@ export function getLeoConfiguration(signInService: SignInService): LeoConfigurat
     AppComponent,
     BreadcrumbComponent,
     BugReportComponent,
-    CreateConceptModalComponent,
+    CreateConceptSetModalComponent,
     CohortEditModalComponent,
     CohortListComponent,
     ConceptAddModalComponent,

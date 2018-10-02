@@ -3,7 +3,7 @@ import {ActivatedRoute} from '@angular/router';
 import {ConceptSet, ConceptsService, DomainInfo} from '../../../generated';
 import {ConceptSetsService} from '../../../generated/api/conceptSets.service';
 @Component({
-  selector: 'app-create-concept-modal',
+  selector: 'app-create-conceptset-modal',
   styleUrls: [
     '../../styles/buttons.css',
     '../../styles/inputs.css',
@@ -12,7 +12,7 @@ import {ConceptSetsService} from '../../../generated/api/conceptSets.service';
   ],
   templateUrl: './component.html',
 })
-export class CreateConceptModalComponent {
+export class CreateConceptSetModalComponent {
   public modalOpen  = false;
   wsNamespace: string;
   wsId: string;
@@ -34,7 +34,9 @@ export class CreateConceptModalComponent {
     this.required = false;
     this.alreadyExist = false;
     this.reset();
-    this.conceptsService.getDomainInfo(this.wsNamespace, this.wsId).subscribe((response) => {
+    this.conceptsService
+        .getDomainInfo(this.wsNamespace, this.wsId)
+        .subscribe((response) => {
       this.conceptDomainList = response.items;
       this.domain = this.conceptDomainList[0];
     });
@@ -45,7 +47,7 @@ export class CreateConceptModalComponent {
     this.modalOpen = false;
   }
 
-  reset(): void {
+  private reset(): void {
     this.name = '';
     this.description = '';
     this.domain = '';
@@ -53,7 +55,7 @@ export class CreateConceptModalComponent {
     this.required = false;
   }
 
-  saveConcept(): void {
+  save(): void {
     this.required = false;
     this.alreadyExist = false;
 
