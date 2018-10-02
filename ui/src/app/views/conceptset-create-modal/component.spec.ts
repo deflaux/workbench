@@ -32,6 +32,7 @@ class ConceptSetCreatePage {
   name: DebugElement;
   description: DebugElement;
   conceptSelect: DebugElement;
+  save: DebugElement;
 
 
   constructor(testBed: typeof TestBed) {
@@ -60,6 +61,7 @@ class ConceptSetCreatePage {
     const conceptList = de.queryAll(By.css('.concept-select'));
     this.name = de.query(By.css('.input-name'));
     this.description = de.query(By.css('.input-description'));
+    this.save = de.query(By.css('.btn-primary'));
     this.conceptSelect = conceptList[0];
 
     if ( conceptList && conceptList.length > 0) {
@@ -118,14 +120,14 @@ describe('ConceptSetComponent', () => {
     expect(spyObj).toHaveBeenCalledWith(this.workspaceNamespace, this.workspaceId);
   }));*/
 
-  it('saves concept sets informations', fakeAsync(() => {
+  it('saves concept sets information', fakeAsync(() => {
     const spyObj = spyOn(concetSetServiceStub, 'createConceptSet');
 
     conceptSetCreatePage.fixture.componentRef.instance.open();
     conceptSetCreatePage.readPageData();
     simulateInput(conceptSetCreatePage.fixture, conceptSetCreatePage.name, 'Concept');
     simulateInput(conceptSetCreatePage.fixture, conceptSetCreatePage.description, 'Description');
-   // simulateClick(conceptSetCreatePage.fixture , conceptSetCreatePage.conceptSelect, 'Concept');
+    simulateClick(conceptSetCreatePage.fixture , conceptSetCreatePage.save);
     expect(spyObj).toHaveBeenCalled();
   }));
 });
