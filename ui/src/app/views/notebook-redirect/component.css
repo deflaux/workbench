@@ -77,5 +77,9 @@
 }
 
 .i-frame {
-  height: 0;
+  /* TODO: frame should be 100% height, currently hardcoded to 33rem with an inline style (?) */
+  /* TODO: negative margins are hacky, we should figure out a more standard way
+     to remove the app-wide margin on certain views (see homepage as well). */
+  margin-left: -.6rem;
+  margin-right: -.6rem;
 }
