@@ -19,6 +19,7 @@ export class HighlightSearchComponent implements OnChanges {
     }
     this.words = this.text.split(' ');
   }
+
   public highlight(word) {
     const matches = word.match(new RegExp(this.matchString, 'g'));
     const splits = word.split(new RegExp(this.matchString));
