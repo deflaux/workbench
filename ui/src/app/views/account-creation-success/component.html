@@ -1,5 +1,5 @@
 <div id="account-creation-success"></div>
-<app-account-creation-modals [username]="account.profile.username"
-                             [creationNonce]="account.profile.creationNonce"
+<app-account-creation-modals [username]="getAccount.profile.username"
+                             [creationNonce]="getAccount.profile.creationNonce"
                              (updateEmail)="receiveMessage($event)">
 </app-account-creation-modals>
